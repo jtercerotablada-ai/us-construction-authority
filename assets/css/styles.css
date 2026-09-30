@@ -742,3 +742,25 @@ fieldset.field legend { font-size: .78rem; font-weight: 700; color: var(--ink-2)
 }
 /* touch screens: an open tooltip must never block tapping the neighbouring pins */
 @media (hover: none) { .pin__tip, .pin--l .pin__tip, .pin--r .pin__tip { pointer-events: none !important; } }
+
+/* ---------- Hero visual (illustrated home cross-section) ---------- */
+.hero-visual { position: relative; margin: 0; }
+.hero-visual__frame { position: relative; border-radius: 24px; overflow: hidden; background: #fff; box-shadow: 0 40px 100px -30px rgba(0,0,0,.75); border: 1px solid rgba(255,255,255,.12); }
+.hero-visual__frame img { width: 100%; }
+.hero-visual figcaption { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; font-size: .84rem; color: var(--text-dim); font-weight: 600; }
+.hero-visual figcaption i { color: #ff5a70; }
+.hero-visual figcaption a { color: #fff; }
+.hero-visual figcaption a:hover { color: #ff5a70; }
+.hv-spot { position: absolute; transform: translate(-50%, -50%); width: 34px; height: 34px; display: grid; place-items: center; z-index: 2; }
+.hv-dot { width: 16px; height: 16px; border-radius: 50%; background: var(--red); border: 3px solid #fff; box-shadow: 0 0 0 6px rgba(200,16,46,.22), 0 6px 16px rgba(0,0,0,.35); transition: transform .25s var(--ease); }
+.hv-spot:hover .hv-dot, .hv-spot:focus-visible .hv-dot { transform: scale(1.25); }
+.hv-tip { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translate(-50%, 6px); white-space: nowrap; background: var(--ink); color: #fff; font-size: .82rem; font-weight: 700; padding: 8px 12px; border-radius: 10px; opacity: 0; pointer-events: none; transition: opacity .2s, transform .25s var(--ease); box-shadow: 0 12px 30px rgba(0,0,0,.35); }
+.hv-tip small { display: block; font-size: .62rem; letter-spacing: .16em; text-transform: uppercase; color: #ff8a9a; font-weight: 800; }
+.hv-spot--l .hv-tip { left: 0; transform: translate(0, 6px); }
+.hv-spot--r .hv-tip { left: auto; right: 0; transform: translate(0, 6px); }
+.hv-spot:hover .hv-tip, .hv-spot:focus-visible .hv-tip { opacity: 1; transform: translate(-50%, 0); }
+.hv-spot--l:hover .hv-tip, .hv-spot--l:focus-visible .hv-tip, .hv-spot--r:hover .hv-tip, .hv-spot--r:focus-visible .hv-tip { transform: translate(0, 0); }
+.hv-spot:focus-visible { outline: none; }
+.hv-spot:focus-visible .hv-dot { outline: 3px solid var(--blue); outline-offset: 3px; }
+@media (max-width: 720px) { .hv-spot { width: 30px; height: 30px; } .hv-dot { width: 13px; height: 13px; } .hv-tip { display: none; } }
+@media print { .hero-visual { display: none; } }

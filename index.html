@@ -82,101 +82,13 @@
           </div>
         </div>
 
-      <div class="blueprint">
-        <div class="blueprint__bar"><span>Interactive guide &middot; Cross-section</span><span class="live">Interactive</span></div>
-        <svg viewBox="0 0 600 440" role="group" aria-label="Home cross-section: select a point to see the related service">
-          <g aria-hidden="true">
-          <defs>
-            <linearGradient id="scanGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stop-color="#ff5a70" stop-opacity="0"/><stop offset=".5" stop-color="#ff5a70" stop-opacity=".22"/><stop offset="1" stop-color="#ff5a70" stop-opacity="0"/>
-            </linearGradient>
-            <radialGradient id="heat" cx=".5" cy=".5" r=".5">
-              <stop offset="0" stop-color="#fff3a0" stop-opacity=".95"/><stop offset=".35" stop-color="#ff9a3c" stop-opacity=".7"/><stop offset=".7" stop-color="#c8102e" stop-opacity=".35"/><stop offset="1" stop-color="#4b0c7a" stop-opacity="0"/>
-            </radialGradient>
-            <clipPath id="houseClip"><path d="M50,170 L270,70 L490,170 L490,440 L50,440 Z"/></clipPath>
-          </defs>
-
-          <!-- ground -->
-          <g><line x1="14" y1="388" x2="0" y2="430" class="bp-thin"/><line x1="32" y1="388" x2="18" y2="430" class="bp-thin"/><line x1="50" y1="388" x2="36" y2="430" class="bp-thin"/><line x1="68" y1="388" x2="54" y2="430" class="bp-thin"/><line x1="86" y1="388" x2="72" y2="430" class="bp-thin"/><line x1="104" y1="388" x2="90" y2="430" class="bp-thin"/><line x1="122" y1="388" x2="108" y2="430" class="bp-thin"/><line x1="140" y1="388" x2="126" y2="430" class="bp-thin"/><line x1="158" y1="388" x2="144" y2="430" class="bp-thin"/><line x1="176" y1="388" x2="162" y2="430" class="bp-thin"/><line x1="194" y1="388" x2="180" y2="430" class="bp-thin"/><line x1="212" y1="388" x2="198" y2="430" class="bp-thin"/><line x1="230" y1="388" x2="216" y2="430" class="bp-thin"/><line x1="248" y1="388" x2="234" y2="430" class="bp-thin"/><line x1="266" y1="388" x2="252" y2="430" class="bp-thin"/><line x1="284" y1="388" x2="270" y2="430" class="bp-thin"/><line x1="302" y1="388" x2="288" y2="430" class="bp-thin"/><line x1="320" y1="388" x2="306" y2="430" class="bp-thin"/><line x1="338" y1="388" x2="324" y2="430" class="bp-thin"/><line x1="356" y1="388" x2="342" y2="430" class="bp-thin"/><line x1="374" y1="388" x2="360" y2="430" class="bp-thin"/><line x1="392" y1="388" x2="378" y2="430" class="bp-thin"/><line x1="410" y1="388" x2="396" y2="430" class="bp-thin"/><line x1="428" y1="388" x2="414" y2="430" class="bp-thin"/><line x1="446" y1="388" x2="432" y2="430" class="bp-thin"/><line x1="464" y1="388" x2="450" y2="430" class="bp-thin"/><line x1="482" y1="388" x2="468" y2="430" class="bp-thin"/><line x1="500" y1="388" x2="486" y2="430" class="bp-thin"/><line x1="518" y1="388" x2="504" y2="430" class="bp-thin"/><line x1="536" y1="388" x2="522" y2="430" class="bp-thin"/><line x1="554" y1="388" x2="540" y2="430" class="bp-thin"/><line x1="572" y1="388" x2="558" y2="430" class="bp-thin"/><line x1="590" y1="388" x2="576" y2="430" class="bp-thin"/></g>
-          <line x1="0" y1="380" x2="600" y2="380" class="bp-line"/>
-          <text x="8" y="374" class="bp-text">Grade</text>
-
-          <!-- utility pole + service drop -->
-          <line x1="572" y1="380" x2="572" y2="150" class="bp-line"/>
-          <line x1="560" y1="160" x2="584" y2="160" class="bp-line"/>
-          <path d="M572,162 Q530,220 478,292" class="bp-wire draw"/>
-          <rect x="470" y="288" width="14" height="20" rx="2" class="bp-fill"/>
-          <text x="500" y="210" class="bp-text">Service</text>
-
-          <!-- house shell -->
-          <path d="M50,170 L270,70 L490,170" class="bp-line draw"/>
-          <path d="M70,170 V380 M470,170 V380 M70,170 H470 M70,275 H470 M260,170 V275 M300,275 V380" class="bp-line draw"/>
-          <text x="80" y="186" class="bp-text">2nd floor</text>
-          <text x="80" y="291" class="bp-text">1st floor</text>
-
-          <!-- bathroom -->
-          <rect x="84" y="240" width="92" height="26" rx="10" class="bp-fill"/>
-          <path d="M200,222 h24 v18 h-24 z M198,242 h30 q0,20 -15,22 q-15,-2 -15,-22 z" class="bp-fill"/>
-          <!-- bedroom: fan + receptacle -->
-          <path d="M365,170 V182 M335,184 H395" class="bp-line"/>
-          <ellipse cx="365" cy="186" rx="8" ry="4" class="bp-fill"/>
-          <rect x="449" y="250" width="12" height="16" rx="2" class="bp-fill"/>
-          <!-- kitchen -->
-          <rect x="88" y="290" width="120" height="20" rx="2" class="bp-fill"/>
-          <path d="M86,346 H270 V380 H86 Z" class="bp-fill"/>
-          <path d="M150,346 v8 h32 v-8" class="bp-line"/>
-          <path d="M166,346 v-16 q0,-6 8,-6" class="bp-line"/>
-          <rect x="214" y="350" width="44" height="30" rx="2" class="bp-fill"/>
-          <!-- utility: heater + panel + washer -->
-          <rect x="400" y="300" width="44" height="78" rx="8" class="bp-fill"/>
-          <rect x="320" y="298" width="26" height="40" rx="2" class="bp-fill"/>
-          <path d="M325,306 h16 M325,312 h16 M325,318 h16 M325,324 h16 M325,330 h16" class="bp-thin"/>
-          <rect x="352" y="344" width="36" height="36" rx="4" class="bp-fill"/>
-          <circle cx="370" cy="362" r="10" class="bp-thin"/>
-
-          <!-- drain / vent stack + sewer -->
-          <path d="M240,62 V404 H600" class="bp-drain draw d2"/>
-          <path d="M150,266 V272 H240 M166,354 V368 H240 M214,264 V270" class="bp-drain draw d2"/>
-          <text x="248" y="420" class="bp-text">Drain / sewer</text>
-
-          <!-- cold supply -->
-          <path d="M600,396 H452 V292 H428 V300 M452,368 H96 V236 M96,262 H212 V240 M166,368 V330" class="bp-cold draw d3"/>
-          <circle cx="530" cy="396" r="5" class="bp-fill"/>
-          <text x="505" y="416" class="bp-text">Supply</text>
-          <!-- hot supply -->
-          <path d="M438,300 V284 H108 V236 M176,284 V330" class="bp-hot draw d3"/>
-
-          <!-- electrical -->
-          <path d="M478,300 H346 M333,298 V172 H365 M340,298 V282 H455 V266 M320,318 H148 V310" class="bp-wire draw d4"/>
-
-          <!-- thermal anomalies -->
-          <circle cx="96" cy="326" r="26" fill="url(#heat)"><animate attributeName="r" values="22;30;22" dur="3s" repeatCount="2"/></circle>
-          <circle cx="333" cy="318" r="22" fill="url(#heat)" opacity=".85"><animate attributeName="r" values="18;26;18" dur="3.4s" repeatCount="2"/></circle>
-
-          <!-- IR scan line -->
-          <g clip-path="url(#houseClip)"><rect class="scanline" x="50" y="60" width="440" height="40" fill="url(#scanGrad)"/></g>
-
-          </g>
-          <!-- hotspots -->
-        <a class="hotspot" href="services/plumbing-shower-tub.html" aria-label="Bathroom &amp; shower leaks: Tub, shower pan and fixture connections." data-cat="Plumbing" data-title="Bathroom &amp; shower leaks" data-text="Tub, shower pan and fixture connections."><circle class="hit" cx="128" cy="252" r="16"/><circle class="ring" cx="128" cy="252" r="9"/><circle class="core" cx="128" cy="252" r="6"/></a>
-        <a class="hotspot" href="services/plumbing-leak-detection.html" aria-label="Hidden leaks in walls: Located with infrared thermography." data-cat="Plumbing &middot; Infrared" data-title="Hidden leaks in walls" data-text="Located with infrared thermography."><circle class="hit" cx="96" cy="326" r="16"/><circle class="ring" cx="96" cy="326" r="9"/><circle class="core" cx="96" cy="326" r="6"/></a>
-        <a class="hotspot" href="services/plumbing-faucets-fixtures.html" aria-label="Kitchen plumbing: Faucets, disposals and dishwashers." data-cat="Plumbing" data-title="Kitchen plumbing" data-text="Faucets, disposals and dishwashers."><circle class="hit" cx="166" cy="342" r="16"/><circle class="ring" cx="166" cy="342" r="9"/><circle class="core" cx="166" cy="342" r="6"/></a>
-        <a class="hotspot" href="services/plumbing-water-heater.html" aria-label="Water heater: Repair or replacement of leaking and failing tanks." data-cat="Plumbing" data-title="Water heater" data-text="Repair or replacement of leaking and failing tanks."><circle class="hit" cx="422" cy="336" r="16"/><circle class="ring" cx="422" cy="336" r="9"/><circle class="core" cx="422" cy="336" r="6"/></a>
-        <a class="hotspot" href="services/electrical-breaker-panel.html" aria-label="Breaker panel: Double taps, oxidized breakers, bonding and more." data-cat="Electrical &middot; Infrared" data-title="Breaker panel" data-text="Double taps, oxidized breakers, bonding and more."><circle class="hit" cx="333" cy="318" r="16"/><circle class="ring" cx="333" cy="318" r="9"/><circle class="core" cx="333" cy="318" r="6"/></a>
-        <a class="hotspot" href="services/electrical-ceiling-fans.html" aria-label="Ceiling fans &amp; lighting: Repair, replace or install new fixtures." data-cat="Electrical" data-title="Ceiling fans &amp; lighting" data-text="Repair, replace or install new fixtures."><circle class="hit" cx="365" cy="190" r="16"/><circle class="ring" cx="365" cy="190" r="9"/><circle class="core" cx="365" cy="190" r="6"/></a>
-        <a class="hotspot" href="services/electrical-receptacles-switches.html" aria-label="Receptacles &amp; switches: Warm, dead or sparking outlets." data-cat="Electrical" data-title="Receptacles &amp; switches" data-text="Warm, dead or sparking outlets."><circle class="hit" cx="455" cy="258" r="16"/><circle class="ring" cx="455" cy="258" r="9"/><circle class="core" cx="455" cy="258" r="6"/></a>
-        <a class="hotspot" href="services/plumbing-sewer-line.html" aria-label="Sewer &amp; drain lines: Clogs and breaks in underground lines." data-cat="Plumbing" data-title="Sewer &amp; drain lines" data-text="Clogs and breaks in underground lines."><circle class="hit" cx="340" cy="408" r="16"/><circle class="ring" cx="340" cy="408" r="9"/><circle class="core" cx="340" cy="408" r="6"/></a>
-        <a class="hotspot" href="services/plumbing-main-shutoff-valve.html" aria-label="Main shutoff valve: Replacement from ¾″ to 2″." data-cat="Plumbing" data-title="Main shutoff valve" data-text="Replacement from &frac34;&Prime; to 2&Prime;."><circle class="hit" cx="530" cy="398" r="16"/><circle class="ring" cx="530" cy="398" r="9"/><circle class="core" cx="530" cy="398" r="6"/></a>
-        </svg>
-        <div class="bp-tip" aria-hidden="true"></div>
-        <div class="blueprint__legend">
-          <span><i style="background:var(--blue)"></i>Cold water</span>
-          <span><i style="background:#ff6b6b"></i>Hot water</span>
-          <span><i style="background:#9fb0c8"></i>Drain / sewer</span>
-          <span><i style="background:var(--amber)"></i>Electrical</span>
-          <span class="hint"><i class="fa-solid fa-hand-pointer" aria-hidden="true"></i> Select a point to explore</span>
+      <figure class="hero-visual">
+        <div class="hero-visual__frame">
+          <img src="assets/img/dg-repiping.jpg" alt="Cross-section of a Florida home showing its plumbing system" width="1254" height="1254" fetchpriority="high" srcset="assets/img/dg-repiping-800.jpg 800w, assets/img/dg-repiping.jpg 1254w" sizes="(max-width: 720px) 100vw, 800px">
+          <a class="hv-spot hv-spot--r" href="services/plumbing-shower-tub.html" style="left:80%;top:22%" aria-label="Bathroom &amp; shower leaks"><span class="hv-dot" aria-hidden="true"></span><span class="hv-tip" aria-hidden="true"><small>Plumbing</small>Bathroom &amp; shower leaks</span></a><a class="hv-spot" href="services/plumbing-faucets-fixtures.html" style="left:37%;top:46%" aria-label="Kitchen plumbing"><span class="hv-dot" aria-hidden="true"></span><span class="hv-tip" aria-hidden="true"><small>Plumbing</small>Kitchen plumbing</span></a><a class="hv-spot" href="services/plumbing-water-heater.html" style="left:61%;top:66%" aria-label="Water heater"><span class="hv-dot" aria-hidden="true"></span><span class="hv-tip" aria-hidden="true"><small>Plumbing</small>Water heater</span></a><a class="hv-spot hv-spot--l" href="services/plumbing-main-shutoff-valve.html" style="left:12%;top:64%" aria-label="Main shutoff valve"><span class="hv-dot" aria-hidden="true"></span><span class="hv-tip" aria-hidden="true"><small>Plumbing</small>Main shutoff valve</span></a><a class="hv-spot hv-spot--r" href="services/plumbing-leak-detection.html" style="left:91%;top:43%" aria-label="Hidden leak detection"><span class="hv-dot" aria-hidden="true"></span><span class="hv-tip" aria-hidden="true"><small>Infrared</small>Hidden leak detection</span></a><a class="hv-spot" href="services/plumbing-sewer-line.html" style="left:40%;top:84%" aria-label="Sewer &amp; drain lines"><span class="hv-dot" aria-hidden="true"></span><span class="hv-tip" aria-hidden="true"><small>Plumbing</small>Sewer &amp; drain lines</span></a>
         </div>
-      </div>
+        <figcaption><span><i class="fa-solid fa-location-dot" aria-hidden="true"></i> Select a point to see the related service</span><a href="plumbing.html">All services <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a></figcaption>
+      </figure>
       </div>
 
       <div class="stats">

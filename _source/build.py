@@ -650,6 +650,30 @@ THERMAL_FILTER = """
     </filter>
   </svg>"""
 
+# ------------------------------------------------------------------ hero visual
+HERO_SPOTS = [
+    (80, 22, "Plumbing", "Bathroom &amp; shower leaks", "services/plumbing-shower-tub.html"),
+    (37, 46, "Plumbing", "Kitchen plumbing", "services/plumbing-faucets-fixtures.html"),
+    (61, 66, "Plumbing", "Water heater", "services/plumbing-water-heater.html"),
+    (12, 64, "Plumbing", "Main shutoff valve", "services/plumbing-main-shutoff-valve.html"),
+    (91, 43, "Infrared", "Hidden leak detection", "services/plumbing-leak-detection.html"),
+    (40, 84, "Plumbing", "Sewer &amp; drain lines", "services/plumbing-sewer-line.html"),
+]
+
+def hero_visual():
+    spots = "".join(
+        f'<a class="hv-spot{" hv-spot--l" if x < 30 else " hv-spot--r" if x > 70 else ""}" href="{h}" style="left:{x}%;top:{y}%" aria-label="{attr(t)}">'
+        f'<span class="hv-dot" aria-hidden="true"></span><span class="hv-tip" aria-hidden="true"><small>{c}</small>{t}</span></a>'
+        for x, y, c, t, h in HERO_SPOTS)
+    return f"""
+      <figure class="hero-visual">
+        <div class="hero-visual__frame">
+          {img_tag("dg-repiping.jpg", "", "Cross-section of a Florida home showing its plumbing system", lazy=False, extra=' fetchpriority="high"')}
+          {spots}
+        </div>
+        <figcaption><span><i class="fa-solid fa-location-dot"></i> Select a point to see the related service</span><a href="plumbing.html">All services <i class="fa-solid fa-arrow-right"></i></a></figcaption>
+      </figure>"""
+
 # ------------------------------------------------------------------ HOME
 def p_services_list(items):
     return "".join(f"<li>{s[2]}</li>" for s in items)
@@ -670,7 +694,7 @@ home = f"""
             <a href="{TC[1]}" class="btn btn--glass"><i class="fa-solid fa-phone"></i> {TC[0]}</a>
           </div>
         </div>
-{blueprint()}
+{hero_visual()}
       </div>
 
       <div class="stats">
