@@ -1,0 +1,16 @@
+title: Generators
+summary: Transfer switches, maintenance and panel connection.
+intro: Be ready for Florida storms. We install transfer switches, help with generator starting and maintenance, and connect generators safely to your home through a transfer switch.
+options:
+- Transfer Switch Installation
+- Starting / Maintenance
+- Connection to Panel Circuit
+reasons:
+- Preparing for hurricane season
+- Generator won’t start or run properly
+- Generator not connected safely to the home
+- No transfer switch installed
+icon: car-battery
+diagram: disconnect
+order: 13
+visible: true

@@ -1,0 +1,36 @@
+# Company details used on every page. Edited from the website panel (Pages CMS).
+company_name: U.S. Construction & Plumbing Authority
+about_line: U.S. Construction & Plumbing Authority and PSL Plumbing & Drains are divisions of CIA Solutions, Corp. JV Triphase Development Corp. Licensed & insured.
+legal_name: CIA Solutions, Corp.
+email: cia4solutions@gmail.com
+offices:
+- region: Treasure Coast
+  phone: (772) 289-2344
+  street: 4166 SW Endicott St.
+  city: Port St. Lucie
+  state: FL
+  zip: '34953'
+- region: Gold Coast
+  phone: (954) 991-9500
+  street: 20423 State Rd. 7, Suite F6-245
+  city: Boca Raton
+  state: FL
+  zip: '33498'
+licenses:
+- type: building
+  label: Building
+  number: CBC1264899
+- type: electrical
+  label: Electrical
+  number: EC13003241
+- type: plumbing
+  label: Plumbing
+  number: CFC1431064
+announcement:
+  show: false
+  text: ""
+  link_text: ""
+  link: ""
+final_cta:
+  heading: Ready to evaluate your plumbing, electrical *or building concerns?*
+  lead: Get fast, precise, and correct evaluations from Florida’s trusted experts.

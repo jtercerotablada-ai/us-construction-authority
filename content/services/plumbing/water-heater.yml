@@ -1,0 +1,15 @@
+title: Water Heater Repair & Replacement
+summary: Leaking tanks, failed elements and no hot water.
+intro: From leaking tanks and faulty relief valves to failed heating elements, our licensed plumbers diagnose the problem and explain whether a repair or a replacement makes more sense for your home.
+options:
+- Repair
+- Replace
+reasons:
+- No hot water, or hot water that runs out quickly
+- Water pooling around the base or in the drain pan
+- Rust-colored water or rumbling and popping noises
+- Dripping from the temperature & pressure relief valve
+icon: fire-flame-simple
+diagram: water-heater
+order: 1
+visible: true

@@ -1,0 +1,17 @@
+title: Drain Clearing
+summary: Kitchen, bathroom sink, tub and shower drains.
+intro: Slow or blocked drains are more than an inconvenience. We clear kitchen, bathroom, tub and shower drains and identify the cause so the problem doesn’t keep coming back.
+options:
+- Kitchen
+- Bathroom Sink
+- Tub
+- Shower
+reasons:
+- Water draining slowly or standing in the fixture
+- Gurgling sounds from drains
+- Recurring clogs in the same fixture
+- Unpleasant odors coming from drains
+icon: filter
+diagram: sewer
+order: 3
+visible: true

@@ -1,0 +1,18 @@
+title: Exterior Lighting Fixtures
+summary: Repair, replace, relocate, add or remove.
+intro: Exterior lighting adds security and curb appeal. We repair, replace, relocate, add and remove exterior fixtures.
+options:
+- Repair
+- Replace
+- Relocate
+- New Addition
+- Remove
+reasons:
+- Outdoor lights not working
+- Water or corrosion inside fixtures
+- Areas of the property left dark
+- Fixtures damaged by weather
+icon: sun
+diagram: fixtures
+order: 10
+visible: true

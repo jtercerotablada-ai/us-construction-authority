@@ -1,3 +1,4 @@
-_source
 *.md
 .git
+dist
+dist.partial

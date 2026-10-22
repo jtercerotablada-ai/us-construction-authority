@@ -1,0 +1,19 @@
+title: Panel Wiring Corrections
+summary: Bushings, connectors and wire sizing.
+intro: Wires entering a panel need the correct protection and size. We install missing anti-short bushings, connectors and connector nuts, and correct wiring that is undersized for the load or incorrect for the application — including exposed live line wires.
+options:
+- Missing Anti-Short Bushings
+- Missing Connectors
+- Missing Connector Nuts
+- Undersized for the Load
+- Incorrect for the Application
+- Exposed Live Line Wires
+reasons:
+- Wires entering the panel without connectors
+- Wires that are warm or discolored
+- Exposed conductors at the panel
+- Circuits that overload regularly
+icon: ethernet
+diagram: panel
+order: 4
+visible: true

@@ -1,0 +1,17 @@
+title: Circuit Breaker Replacement
+summary: Oxidized, broken or incorrectly sized breakers.
+intro: A breaker must match the wire it protects. We replace oxidized and broken breakers, and replace undersized or oversized breakers with the correct size for the existing wire.
+options:
+- Replace Oxidized Breaker(s)
+- Replace Broken Breaker
+- "Undersized Breaker: Correct Size"
+- "Oversized Breaker: Correct Size"
+reasons:
+- A breaker that won’t reset or stay on
+- Breakers that feel hot to the touch
+- Scorch marks on a breaker
+- Lights dimming when appliances start
+icon: toggle-on
+diagram: panel
+order: 2
+visible: true

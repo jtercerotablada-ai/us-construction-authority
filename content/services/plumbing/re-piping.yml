@@ -1,0 +1,15 @@
+title: Re-Piping
+summary: Full or partial whole-house re-piping.
+intro: Homes built with steel, galvanized, lead or cast iron water piping may require a full or partial re-pipe. We evaluate the condition of your piping and walk you through your options.
+options:
+- Full Re-Pipe
+- Partial Re-Pipe
+reasons:
+- Low water pressure throughout the home
+- Discolored or rusty water
+- Frequent leaks in different locations
+- Visible corrosion on exposed pipes
+icon: grip-lines
+diagram: repiping
+order: 5
+visible: true

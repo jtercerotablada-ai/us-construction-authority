@@ -1,0 +1,17 @@
+title: Circuits & New Circuit Additions
+summary: Repair, replace, add or troubleshoot circuits.
+intro: Whether you need a new dedicated circuit or a faulty circuit repaired, we design, install and troubleshoot circuits safely and to code.
+options:
+- New Circuit Addition
+- Repair
+- Replace
+- Troubleshoot
+reasons:
+- Breakers tripping when appliances run
+- Outlets or lights that stop working
+- Adding new appliances or equipment
+- Extension cords used as permanent wiring
+icon: code-branch
+diagram: panel
+order: 5
+visible: true

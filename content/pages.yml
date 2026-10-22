@@ -1,0 +1,64 @@
+# Text for the division pages, the commercial page and the schedule page.
+plumbing:
+  heading: PSL Plumbing *& Drains.*
+  lead: Leak detection, drains, water heaters, re-piping and sewer lines — handled by licensed & insured, code-compliant plumbers. We also have diagrams that may assist you in identifying areas where a leak, deterioration or break can occur.
+  cta_heading: Ready to evaluate your *plumbing concerns?*
+electrical:
+  heading: Triphase *Electrical.*
+  lead: Breaker panels, circuits, lighting, ceiling fans and generators. Our infrared-certified thermography specialists help locate electrical faults early.
+  cta_heading: Ready to evaluate your *electrical concerns?*
+building:
+  heading: U.S. *Construction.*
+  lead: Remodeling, building inspections and trade work by licensed & insured, code-compliant builders. Our quality craftsmanship enhances the safety, elegance and functionality of your home or property.
+  services_heading: Building & *remodeling.*
+  services_intro: Plumbing, electrical and building trades under one company — fewer handoffs, fewer delays.
+  services:
+  - icon: trowel-bricks
+    title: Remodeling
+    text: Kitchens, bathrooms and interior renovations crafted to enhance the elegance and functionality of your home.
+  - icon: magnifying-glass
+    title: Building Inspections
+    text: We evaluate critical components, identify deficiencies and highlight areas that may require attention.
+  - icon: screwdriver-wrench
+    title: Trade Work
+    text: Licensed plumbing, electrical and building trades working together on one project.
+  - icon: file-signature
+    title: Permits & Inspections
+    text: Our operation supports efficient building department permitting & inspections.
+  inspections_heading: Address matters *before they become costly.*
+  inspections_lead: We evaluate critical components, identify deficiencies, and highlight areas that may require attention.
+  inspections:
+  - title: Plan repairs
+    text: Know what needs attention and prioritize the work.
+  - title: Budget effectively
+    text: Transparent estimates so you can plan with confidence.
+  - title: Reduce risk
+    text: Lower the risk of floods, insurance claims, health risks associated with damp or humid conditions, and costly last-minute corrections.
+  cta_heading: Ready to evaluate your *building concerns?*
+commercial:
+  heading: Built for *commercial* schedules.
+  lead: Our meticulous work reduces labor costs, on-site corrections and roughing relocations that cause delays, material waste and unnecessary costs. This helps keep schedules flowing uninterrupted, on time and on budget.
+  proactive_heading: Plan ahead. *Avoid costly surprises.*
+  proactive_lead: 'We evaluate critical components, identify deficiencies, and highlight areas that may require attention, giving you the opportunity to:'
+  proactive:
+  - title: Plan repairs
+    text: Schedule work around your operations instead of reacting to failures.
+  - title: Budget effectively
+    text: Transparent estimates that let you allocate budget with confidence.
+  - title: Address matters early
+    text: Resolve issues before they become costly — for a smoother, more predictable experience.
+  risk_heading: A proactive approach *reduces:*
+  risks:
+  - title: The risk of floods
+    text: Leaks and failures caught early.
+  - title: Insurance claims
+    text: Fewer incidents, fewer claims.
+  - title: Health risks
+    text: Associated with damp or humid conditions.
+  - title: Last-minute corrections
+    text: Costly corrections that stall schedules.
+  cta_heading: Keep your project *on time and on budget.*
+  cta_lead: Talk to our licensed plumbing, electrical and building team about your next commercial project.
+schedule:
+  heading: Schedule your *appointment now.*
+  lead: Fill out this form to request a complimentary visit to your site. One of our officers will call you to schedule a visit to evaluate your project at no cost to you.

@@ -1,0 +1,21 @@
+title: Breaker Panel Corrections
+summary: Double taps, grounds, neutrals and bonding.
+intro: Many panel issues are invisible until they cause a failure. We correct double taps, separate grounds from neutrals, replace oxidized ground lugs, install ground bars, clean panel interiors and add bonding lugs where panels are not bonded.
+options:
+- "Double Taps: Circuit Breakers"
+- "Double Taps: Line / Load Wires"
+- "Double Taps: Grounds"
+- Separate Grounds from Neutrals
+- Replace Oxidized Ground Lug
+- Install Ground Bar
+- Clean Panel Interior
+- Add Bonding Lug
+reasons:
+- Breakers that trip frequently
+- Warm panel cover or a burning smell
+- Visible rust or corrosion inside the panel
+- Buzzing or crackling sounds
+icon: table-cells
+diagram: panel
+order: 1
+visible: true

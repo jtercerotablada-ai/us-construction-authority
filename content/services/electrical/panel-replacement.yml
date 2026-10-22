@@ -1,0 +1,18 @@
+title: Panel Replacement
+summary: Oxidized, warped, broken or undersized panels.
+intro: When a panel is oxidized, warped, has broken breaker retainers or is undersized for the home, we replace it with a properly sized panel.
+options:
+- Oxidized Panel
+- Warped Panel
+- Broken Breaker Retainers
+- Undersized Panel
+- Other
+reasons:
+- Breakers that don’t seat firmly
+- Not enough space for new circuits
+- Corrosion or heat damage in the panel
+- An older panel that is no longer serviceable
+icon: server
+diagram: panel
+order: 3
+visible: true

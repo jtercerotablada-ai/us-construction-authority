@@ -1,0 +1,16 @@
+title: Food Disposal
+summary: Replace, repair or unjam disposals.
+intro: Whether your disposal is jammed, leaking or simply worn out, we repair, unjam or replace it.
+options:
+- Replace
+- Repair
+- Unjam
+reasons:
+- Humming but not turning
+- Leaks under the sink
+- Slow draining kitchen sink
+- Unusual grinding noises
+icon: gears
+diagram: kitchen
+order: 11
+visible: true

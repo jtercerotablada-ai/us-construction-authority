@@ -1,0 +1,24 @@
+title: Water Heater
+description: This diagram shows the various points where a water heater tank and its connections can leak and fail.
+points:
+- Shutoff valve (inlet)
+- Flexible connector (inlet)
+- Expansion tank connection
+- Cold-water inlet fitting
+- Anode rod port
+- Hot-water outlet fitting
+- Flexible connector (outlet)
+- Temperature & pressure relief valve
+- T&P discharge pipe joint
+- Upper side penetration fitting
+- Upper heating element gasket
+- Upper thermostat & cover
+- Tank body corrosion pinhole
+- Lower heating element gasket
+- Sediment & scale buildup
+- Drain valve & threads
+- Bottom seam corrosion
+- Drain pan leak / overflow
+- Gas control valve
+- Gas connector (flex)
+- Burner & pilot assembly

@@ -1,0 +1,16 @@
+title: Water Heater Circuits
+summary: Re-wiring, new circuits and tankless expansion.
+intro: Water heaters need a correctly sized, dedicated circuit. We re-wire water heater circuits, add new circuits and expand circuits for tankless water heaters.
+options:
+- Re-Wiring
+- New Circuit
+- Tankless Circuit Expansion
+reasons:
+- Breaker trips when the water heater runs
+- Switching to a tankless water heater
+- Warm or discolored wiring at the heater
+- No hot water with power issues
+icon: temperature-arrow-up
+diagram: none
+order: 12
+visible: true

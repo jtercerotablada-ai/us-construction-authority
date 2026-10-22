@@ -1,0 +1,21 @@
+title: Toilet Repair & Replacement
+summary: Clogs, leaks, running toilets and replacements.
+intro: From a stubborn clog to a full replacement, we handle every part of the toilet — wax rings, tank kits, flappers, bolts, flanges and fill valves.
+options:
+- Unclog
+- Replace Toilet
+- Replace Wax Ring
+- Replace Tank Kit
+- Replace Flapper
+- Replace Bolt Set
+- Replace Flange
+- Replace Fill Valve
+reasons:
+- Toilet runs constantly or refills on its own
+- Water around the base of the toilet
+- Weak flush or frequent clogs
+- Toilet rocks or feels loose
+icon: toilet
+diagram: bathtub
+order: 7
+visible: true

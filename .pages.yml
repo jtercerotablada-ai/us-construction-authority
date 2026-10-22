@@ -1,0 +1,1385 @@
+# Panel de edición de la web — Pages CMS (https://app.pagescms.org)
+# Cada cambio guardado en el panel crea un commit en GitHub y la web se vuelve a publicar sola.
+# Generado por _source/make_pages_config.py — los nombres de campos deben coincidir con content/*.yml y _source/build.py.
+media:
+  input: assets/img/uploads
+  output: /assets/img/uploads
+  extensions:
+  - jpg
+  - jpeg
+  - png
+  - webp
+  rename: safe
+content:
+- name: site
+  label: Datos de la empresa
+  type: file
+  path: content/site.yml
+  format: yaml
+  description: Teléfonos, direcciones, correo, licencias y aviso superior. Aparecen en todas las páginas.
+  fields:
+  - name: company_name
+    label: Nombre de la empresa
+    type: string
+    required: true
+  - name: legal_name
+    label: Razón social
+    type: string
+    description: Aparece en el aviso de derechos al final de la página.
+    required: true
+  - name: about_line
+    label: Frase del pie de página
+    type: text
+    required: true
+  - name: email
+    label: Correo de contacto
+    type: string
+    description: Aquí llegan las solicitudes del formulario.
+    required: true
+    pattern:
+      regex: ^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$
+      message: Escribe un correo válido
+  - name: offices
+    label: Oficinas
+    type: object
+    list:
+      collapsible:
+        collapsed: true
+        summary: '{fields.region} · {fields.phone}'
+    fields:
+    - name: region
+      label: Región
+      type: string
+      description: 'Ejemplo: Treasure Coast'
+      required: true
+    - name: phone
+      label: Teléfono
+      type: string
+      description: 'Formato: (772) 289-2344'
+      required: true
+      pattern:
+        regex: ^\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$
+        message: 'Escribe el teléfono así: (772) 289-2344'
+    - name: street
+      label: Dirección
+      type: string
+      required: true
+    - name: city
+      label: Ciudad
+      type: string
+      required: true
+    - name: state
+      label: Estado
+      type: string
+      description: 'Ejemplo: FL'
+      required: true
+    - name: zip
+      label: Código postal
+      type: string
+      required: true
+    description: La primera oficina es el teléfono principal de la web.
+    required: true
+  - name: licenses
+    label: Licencias
+    type: object
+    list:
+      collapsible:
+        collapsed: true
+        summary: '{fields.label} · {fields.number}'
+    fields:
+    - name: type
+      label: Tipo
+      type: select
+      required: true
+      options:
+        values:
+        - value: building
+          label: Construcción
+        - value: electrical
+          label: Electricidad
+        - value: plumbing
+          label: Plomería
+        - value: other
+          label: Otra
+    - name: label
+      label: Nombre
+      type: string
+      description: 'Ejemplo: Building'
+      required: true
+    - name: number
+      label: Número de licencia
+      type: string
+      required: true
+    required: true
+  - name: announcement
+    label: Aviso superior (barra roja)
+    type: object
+    fields:
+    - name: show
+      label: Mostrar el aviso
+      type: boolean
+      default: false
+    - name: text
+      label: Texto del aviso
+      type: text
+      description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
+    - name: link_text
+      label: Texto del enlace (opcional)
+      type: string
+      description: 'Ejemplo: Book now'
+    - name: link
+      label: Enlace (opcional)
+      type: string
+      description: 'Ejemplo: schedule.html o https://...'
+      pattern:
+        regex: ^(https?://\S+|mailto:\S+|tel:\S+|[\w\-./]+\.html(#[\w-]+)?|/\S*|#\S*)?$
+        message: Usa una dirección que empiece con https:// o el nombre de una página, por ejemplo schedule.html
+    description: Úsalo para promociones o avisos temporales (por ejemplo, temporada de huracanes).
+  - name: final_cta
+    label: Llamado final (al pie de cada página)
+    type: object
+    fields:
+    - name: heading
+      label: Título
+      type: string
+      description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
+      required: true
+    - name: lead
+      label: Texto
+      type: text
+      required: true
+- name: home
+  label: Página de inicio
+  type: file
+  path: content/home.yml
+  format: yaml
+  fields:
+  - name: hero
+    label: Portada
+    type: object
+    fields:
+    - name: badge
+      label: Etiqueta roja
+      type: string
+      description: 'Ejemplo: Free'
+      required: true
+    - name: badge_text
+      label: Texto junto a la etiqueta
+      type: string
+      required: true
+    - name: heading
+      label: Título principal
+      type: string
+      description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
+      required: true
+    - name: trades
+      label: Oficios (fila bajo el título)
+      type: string
+      list: true
+      required: true
+    - name: subtitle
+      label: Subtítulo
+      type: text
+      description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
+      required: true
+  - name: stats
+    label: Cifras
+    type: object
+    list:
+      collapsible:
+        collapsed: true
+        summary: '{fields.number} · {fields.label}'
+    fields:
+    - name: number
+      label: Número
+      type: string
+      description: 'Ejemplo: 35 o $0'
+      required: true
+    - name: plus
+      label: Mostrar un + después del número
+      type: boolean
+      default: false
+    - name: label
+      label: Descripción
+      type: string
+      required: true
+    required: true
+  - name: divisions
+    label: 01 · Divisiones
+    type: object
+    fields:
+    - name: label
+      label: Etiqueta pequeña (sobre el título)
+      type: string
+      required: true
+    - name: heading
+      label: Título
+      type: string
+      description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
+      required: true
+    - name: intro
+      label: Texto
+      type: text
+      description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
+      required: true
+    - name: plumbing
+      label: Tarjeta de plomería
+      type: object
+      fields:
+      - name: title
+        label: Título
+        type: string
+        required: true
+      - name: text
+        label: Texto
+        type: text
+        required: true
+      - name: bullets
+        label: Puntos de la lista
+        type: string
+        list: true
+        required: true
+    - name: electrical
+      label: Tarjeta de electricidad
+      type: object
+      fields:
+      - name: title
+        label: Título
+        type: string
+        required: true
+      - name: text
+        label: Texto
+        type: text
+        required: true
+      - name: bullets
+        label: Puntos de la lista
+        type: string
+        list: true
+        required: true
+    - name: building
+      label: Tarjeta de construcción
+      type: object
+      fields:
+      - name: title
+        label: Título
+        type: string
+        required: true
+      - name: text
+        label: Texto
+        type: text
+        required: true
+      - name: bullets
+        label: Puntos de la lista
+        type: string
+        list: true
+        required: true
+  - name: thermal
+    label: 02 · Termografía infrarroja
+    type: object
+    fields:
+    - name: label
+      label: Etiqueta pequeña (sobre el título)
+      type: string
+      required: true
+    - name: heading
+      label: Título
+      type: string
+      description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
+      required: true
+    - name: lead
+      label: Texto
+      type: text
+      description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
+      required: true
+    - name: points
+      label: Puntos
+      type: object
+      list:
+        collapsible:
+          collapsed: true
+          summary: '{fields.title}'
+      fields:
+      - name: title
+        label: Título
+        type: string
+        required: true
+      - name: text
+        label: Texto
+        type: text
+        required: true
+      required: true
+  - name: why
+    label: 03 · Por qué elegirnos
+    type: object
+    fields:
+    - name: label
+      label: Etiqueta pequeña (sobre el título)
+      type: string
+      required: true
+    - name: heading
+      label: Título
+      type: string
+      description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
+      required: true
+    - name: lead
+      label: Texto
+      type: text
+      description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
+      required: true
+    - name: items
+      label: Razones
+      type: object
+      list:
+        collapsible:
+          collapsed: true
+          summary: '{fields.title}'
+      fields:
+      - name: title
+        label: Título
+        type: string
+        required: true
+      - name: text
+        label: Texto
+        type: text
+        required: true
+      required: true
+  - name: steps
+    label: 04 · Cómo funciona
+    type: object
+    fields:
+    - name: label
+      label: Etiqueta pequeña (sobre el título)
+      type: string
+      required: true
+    - name: heading
+      label: Título
+      type: string
+      description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
+      required: true
+    - name: lead
+      label: Texto
+      type: text
+      description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
+      required: true
+    - name: items
+      label: Pasos
+      type: object
+      list:
+        collapsible:
+          collapsed: true
+          summary: '{fields.title}'
+      fields:
+      - name: title
+        label: Título
+        type: string
+        required: true
+      - name: text
+        label: Texto
+        type: text
+        required: true
+      required: true
+  - name: diagnostics
+    label: 05 · Diagramas
+    type: object
+    fields:
+    - name: label
+      label: Etiqueta pequeña (sobre el título)
+      type: string
+      required: true
+    - name: heading
+      label: Título
+      type: string
+      description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
+      required: true
+    - name: lead
+      label: Texto
+      type: text
+      description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
+      required: true
+  - name: commercial
+    label: 06 · Clientes comerciales
+    type: object
+    fields:
+    - name: label
+      label: Etiqueta pequeña (sobre el título)
+      type: string
+      required: true
+    - name: heading
+      label: Título
+      type: string
+      description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
+      required: true
+    - name: lead
+      label: Texto
+      type: text
+      description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
+      required: true
+    - name: benefits
+      label: Beneficios
+      type: object
+      list:
+        collapsible:
+          collapsed: true
+          summary: '{fields.title}'
+      fields:
+      - name: title
+        label: Título
+        type: string
+        required: true
+      - name: text
+        label: Texto
+        type: text
+        required: true
+      required: true
+  - name: about
+    label: 07 · Sobre nosotros
+    type: object
+    fields:
+    - name: label
+      label: Etiqueta pequeña (sobre el título)
+      type: string
+      required: true
+    - name: heading
+      label: Título
+      type: string
+      description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
+      required: true
+    - name: paragraphs
+      label: Párrafos
+      type: text
+      list: true
+      description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
+      required: true
+    - name: corporate_line
+      label: Línea corporativa
+      type: string
+      required: true
+    - name: quote
+      label: Frase destacada
+      type: text
+      required: true
+  - name: areas
+    label: Zonas de servicio
+    type: object
+    fields:
+    - name: label
+      label: Etiqueta pequeña (sobre el título)
+      type: string
+      required: true
+    - name: heading
+      label: Título
+      type: string
+      description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
+      required: true
+    - name: lead
+      label: Texto
+      type: text
+      description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
+      required: true
+    description: Las direcciones y teléfonos se editan en «Datos de la empresa».
+- name: gallery
+  label: Fotos de proyectos
+  type: file
+  path: content/gallery.yml
+  format: yaml
+  description: Sube fotos de trabajos terminados. La sección aparece sola cuando hay al menos una foto.
+  fields:
+  - name: heading
+    label: Título de la sección
+    type: string
+    description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
+    required: true
+  - name: intro
+    label: Texto de la sección
+    type: text
+  - name: projects
+    label: Fotos
+    type: object
+    list:
+      collapsible:
+        collapsed: true
+        summary: '{fields.title}'
+    fields:
+    - name: image
+      label: Foto
+      type: image
+      required: true
+      description: JPG, PNG o WebP. La web la reduce y optimiza sola.
+    - name: title
+      label: Descripción corta
+      type: string
+      description: 'Ejemplo: Kitchen re-piping in Port St. Lucie'
+      required: true
+    - name: category
+      label: Mostrar en
+      type: select
+      required: true
+      default: all
+      options:
+        values:
+        - value: all
+          label: Todas las páginas
+        - value: plumbing
+          label: Plomería
+        - value: electrical
+          label: Electricidad
+        - value: building
+          label: Construcción
+        - value: commercial
+          label: Comercial
+- name: plumbing
+  label: Servicios de plomería
+  type: collection
+  path: content/services/plumbing
+  format: yaml
+  description: Cada servicio tiene su propia página. Desmarca «Mostrar en la web» para ocultarlo sin borrarlo.
+  filename: '{fields.title}.yml'
+  view:
+    fields:
+    - title
+    - order
+    - visible
+    primary: title
+    sort:
+    - order
+    - title
+    default:
+      sort: order
+      order: asc
+  fields:
+  - name: title
+    label: Nombre del servicio
+    type: string
+    required: true
+  - name: summary
+    label: Resumen corto
+    type: string
+    description: Aparece en la tarjeta del servicio.
+    required: true
+  - name: intro
+    label: Introducción
+    type: text
+    description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
+    required: true
+  - name: options
+    label: Opciones del servicio
+    type: string
+    list: true
+    description: Lo que incluye este servicio.
+    required: true
+  - name: reasons
+    label: Razones para llamar
+    type: string
+    list: true
+    required: true
+  - name: icon
+    label: Ícono
+    type: select
+    required: true
+    default: wrench
+    options:
+      values:
+      - value: faucet
+        label: Grifo
+      - value: faucet-drip
+        label: Grifo goteando
+      - value: droplet
+        label: Gota de agua
+      - value: shower
+        label: Ducha
+      - value: toilet
+        label: Inodoro
+      - value: sink
+        label: Lavamanos
+      - value: fire-flame-simple
+        label: Llama (calentador)
+      - value: filter
+        label: Filtro de agua
+      - value: house-flood-water
+        label: Inundación
+      - value: grip-lines
+        label: Tuberías / líneas
+      - value: gauge-simple
+        label: Medidor de presión
+      - value: gears
+        label: Engranajes (triturador)
+      - value: soap
+        label: Jabón (lavadora)
+      - value: glass-water
+        label: Vaso de agua
+      - value: wrench
+        label: Llave inglesa
+      - value: screwdriver-wrench
+        label: Herramientas
+      - value: toolbox
+        label: Caja de herramientas
+      - value: bolt
+        label: Rayo (electricidad)
+      - value: plug
+        label: Enchufe
+      - value: lightbulb
+        label: Bombillo
+      - value: fan
+        label: Ventilador de techo
+      - value: sun
+        label: Sol / luz exterior
+      - value: power-off
+        label: Sin electricidad
+      - value: toggle-on
+        label: Interruptor
+      - value: table-cells
+        label: Panel eléctrico
+      - value: server
+        label: Gabinete / panel
+      - value: ethernet
+        label: Tomacorriente
+      - value: code-branch
+        label: Circuitos
+      - value: car-battery
+        label: Generador / batería
+      - value: temperature-arrow-up
+        label: Temperatura alta
+      - value: temperature-half
+        label: Termómetro
+      - value: triangle-exclamation
+        label: Advertencia / peligro
+      - value: house-chimney-window
+        label: Casa
+      - value: trowel-bricks
+        label: Ladrillos (remodelación)
+      - value: magnifying-glass
+        label: Lupa (inspección)
+      - value: file-signature
+        label: Documento firmado (permisos)
+      - value: helmet-safety
+        label: Casco de obra
+      - value: hammer
+        label: Martillo
+      - value: paint-roller
+        label: Rodillo de pintura
+      - value: ruler-combined
+        label: Regla (medidas)
+      - value: building
+        label: Edificio
+      - value: city
+        label: Ciudad (comercial)
+      - value: shield-halved
+        label: Escudo (seguridad)
+      - value: clipboard-check
+        label: Lista de verificación
+  - name: diagram
+    label: Diagrama
+    type: select
+    required: true
+    default: none
+    options:
+      values:
+      - value: none
+        label: Sin diagrama
+      - value: water-heater
+        label: Calentador de agua
+      - value: bathtub
+        label: Baño con tina
+      - value: shower
+        label: Baño con ducha
+      - value: kitchen
+        label: Cocina
+      - value: repiping
+        label: Casa completa (re-piping)
+      - value: sewer
+        label: Líneas de drenaje y alcantarillado
+      - value: panel
+        label: Panel de breakers
+      - value: disconnect
+        label: Interruptor de desconexión
+      - value: fixtures
+        label: Lámparas y ventiladores de techo
+      - value: receptacles
+        label: Tomacorrientes e interruptores
+  - name: order
+    label: Orden
+    type: number
+    required: true
+    default: 50
+    description: Los números más bajos aparecen primero.
+    options:
+      min: 0
+      max: 999
+  - name: visible
+    label: Mostrar en la web
+    type: boolean
+    default: true
+- name: electrical
+  label: Servicios eléctricos
+  type: collection
+  path: content/services/electrical
+  format: yaml
+  description: Cada servicio tiene su propia página. Desmarca «Mostrar en la web» para ocultarlo sin borrarlo.
+  filename: '{fields.title}.yml'
+  view:
+    fields:
+    - title
+    - order
+    - visible
+    primary: title
+    sort:
+    - order
+    - title
+    default:
+      sort: order
+      order: asc
+  fields:
+  - name: title
+    label: Nombre del servicio
+    type: string
+    required: true
+  - name: summary
+    label: Resumen corto
+    type: string
+    description: Aparece en la tarjeta del servicio.
+    required: true
+  - name: intro
+    label: Introducción
+    type: text
+    description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
+    required: true
+  - name: options
+    label: Opciones del servicio
+    type: string
+    list: true
+    description: Lo que incluye este servicio.
+    required: true
+  - name: reasons
+    label: Razones para llamar
+    type: string
+    list: true
+    required: true
+  - name: icon
+    label: Ícono
+    type: select
+    required: true
+    default: wrench
+    options:
+      values:
+      - value: faucet
+        label: Grifo
+      - value: faucet-drip
+        label: Grifo goteando
+      - value: droplet
+        label: Gota de agua
+      - value: shower
+        label: Ducha
+      - value: toilet
+        label: Inodoro
+      - value: sink
+        label: Lavamanos
+      - value: fire-flame-simple
+        label: Llama (calentador)
+      - value: filter
+        label: Filtro de agua
+      - value: house-flood-water
+        label: Inundación
+      - value: grip-lines
+        label: Tuberías / líneas
+      - value: gauge-simple
+        label: Medidor de presión
+      - value: gears
+        label: Engranajes (triturador)
+      - value: soap
+        label: Jabón (lavadora)
+      - value: glass-water
+        label: Vaso de agua
+      - value: wrench
+        label: Llave inglesa
+      - value: screwdriver-wrench
+        label: Herramientas
+      - value: toolbox
+        label: Caja de herramientas
+      - value: bolt
+        label: Rayo (electricidad)
+      - value: plug
+        label: Enchufe
+      - value: lightbulb
+        label: Bombillo
+      - value: fan
+        label: Ventilador de techo
+      - value: sun
+        label: Sol / luz exterior
+      - value: power-off
+        label: Sin electricidad
+      - value: toggle-on
+        label: Interruptor
+      - value: table-cells
+        label: Panel eléctrico
+      - value: server
+        label: Gabinete / panel
+      - value: ethernet
+        label: Tomacorriente
+      - value: code-branch
+        label: Circuitos
+      - value: car-battery
+        label: Generador / batería
+      - value: temperature-arrow-up
+        label: Temperatura alta
+      - value: temperature-half
+        label: Termómetro
+      - value: triangle-exclamation
+        label: Advertencia / peligro
+      - value: house-chimney-window
+        label: Casa
+      - value: trowel-bricks
+        label: Ladrillos (remodelación)
+      - value: magnifying-glass
+        label: Lupa (inspección)
+      - value: file-signature
+        label: Documento firmado (permisos)
+      - value: helmet-safety
+        label: Casco de obra
+      - value: hammer
+        label: Martillo
+      - value: paint-roller
+        label: Rodillo de pintura
+      - value: ruler-combined
+        label: Regla (medidas)
+      - value: building
+        label: Edificio
+      - value: city
+        label: Ciudad (comercial)
+      - value: shield-halved
+        label: Escudo (seguridad)
+      - value: clipboard-check
+        label: Lista de verificación
+  - name: diagram
+    label: Diagrama
+    type: select
+    required: true
+    default: none
+    options:
+      values:
+      - value: none
+        label: Sin diagrama
+      - value: water-heater
+        label: Calentador de agua
+      - value: bathtub
+        label: Baño con tina
+      - value: shower
+        label: Baño con ducha
+      - value: kitchen
+        label: Cocina
+      - value: repiping
+        label: Casa completa (re-piping)
+      - value: sewer
+        label: Líneas de drenaje y alcantarillado
+      - value: panel
+        label: Panel de breakers
+      - value: disconnect
+        label: Interruptor de desconexión
+      - value: fixtures
+        label: Lámparas y ventiladores de techo
+      - value: receptacles
+        label: Tomacorrientes e interruptores
+  - name: order
+    label: Orden
+    type: number
+    required: true
+    default: 50
+    description: Los números más bajos aparecen primero.
+    options:
+      min: 0
+      max: 999
+  - name: visible
+    label: Mostrar en la web
+    type: boolean
+    default: true
+- name: pages
+  label: Otras páginas
+  type: file
+  path: content/pages.yml
+  format: yaml
+  description: Textos de las páginas de plomería, electricidad, construcción, comercial y agenda.
+  fields:
+  - name: plumbing
+    label: Página de plomería
+    type: object
+    fields:
+    - name: heading
+      label: Título
+      type: string
+      description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
+      required: true
+    - name: lead
+      label: Texto
+      type: text
+      description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
+      required: true
+    - name: cta_heading
+      label: Título del llamado final
+      type: string
+      description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
+      required: true
+  - name: electrical
+    label: Página de electricidad
+    type: object
+    fields:
+    - name: heading
+      label: Título
+      type: string
+      description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
+      required: true
+    - name: lead
+      label: Texto
+      type: text
+      description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
+      required: true
+    - name: cta_heading
+      label: Título del llamado final
+      type: string
+      description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
+      required: true
+  - name: building
+    label: Página de construcción
+    type: object
+    fields:
+    - name: heading
+      label: Título
+      type: string
+      description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
+      required: true
+    - name: lead
+      label: Texto
+      type: text
+      description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
+      required: true
+    - name: services_heading
+      label: Título de servicios
+      type: string
+      description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
+      required: true
+    - name: services_intro
+      label: Texto de servicios
+      type: text
+      description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
+      required: true
+    - name: services
+      label: Servicios
+      type: object
+      list:
+        collapsible:
+          collapsed: true
+          summary: '{fields.title}'
+      fields:
+      - name: icon
+        label: Ícono
+        type: select
+        required: true
+        default: hammer
+        options:
+          values:
+          - value: faucet
+            label: Grifo
+          - value: faucet-drip
+            label: Grifo goteando
+          - value: droplet
+            label: Gota de agua
+          - value: shower
+            label: Ducha
+          - value: toilet
+            label: Inodoro
+          - value: sink
+            label: Lavamanos
+          - value: fire-flame-simple
+            label: Llama (calentador)
+          - value: filter
+            label: Filtro de agua
+          - value: house-flood-water
+            label: Inundación
+          - value: grip-lines
+            label: Tuberías / líneas
+          - value: gauge-simple
+            label: Medidor de presión
+          - value: gears
+            label: Engranajes (triturador)
+          - value: soap
+            label: Jabón (lavadora)
+          - value: glass-water
+            label: Vaso de agua
+          - value: wrench
+            label: Llave inglesa
+          - value: screwdriver-wrench
+            label: Herramientas
+          - value: toolbox
+            label: Caja de herramientas
+          - value: bolt
+            label: Rayo (electricidad)
+          - value: plug
+            label: Enchufe
+          - value: lightbulb
+            label: Bombillo
+          - value: fan
+            label: Ventilador de techo
+          - value: sun
+            label: Sol / luz exterior
+          - value: power-off
+            label: Sin electricidad
+          - value: toggle-on
+            label: Interruptor
+          - value: table-cells
+            label: Panel eléctrico
+          - value: server
+            label: Gabinete / panel
+          - value: ethernet
+            label: Tomacorriente
+          - value: code-branch
+            label: Circuitos
+          - value: car-battery
+            label: Generador / batería
+          - value: temperature-arrow-up
+            label: Temperatura alta
+          - value: temperature-half
+            label: Termómetro
+          - value: triangle-exclamation
+            label: Advertencia / peligro
+          - value: house-chimney-window
+            label: Casa
+          - value: trowel-bricks
+            label: Ladrillos (remodelación)
+          - value: magnifying-glass
+            label: Lupa (inspección)
+          - value: file-signature
+            label: Documento firmado (permisos)
+          - value: helmet-safety
+            label: Casco de obra
+          - value: hammer
+            label: Martillo
+          - value: paint-roller
+            label: Rodillo de pintura
+          - value: ruler-combined
+            label: Regla (medidas)
+          - value: building
+            label: Edificio
+          - value: city
+            label: Ciudad (comercial)
+          - value: shield-halved
+            label: Escudo (seguridad)
+          - value: clipboard-check
+            label: Lista de verificación
+      - name: title
+        label: Título
+        type: string
+        required: true
+      - name: text
+        label: Texto
+        type: text
+        required: true
+      required: true
+    - name: inspections_heading
+      label: Título de inspecciones
+      type: string
+      description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
+      required: true
+    - name: inspections_lead
+      label: Texto de inspecciones
+      type: text
+      description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
+      required: true
+    - name: inspections
+      label: Beneficios de las inspecciones
+      type: object
+      list:
+        collapsible:
+          collapsed: true
+          summary: '{fields.title}'
+      fields:
+      - name: title
+        label: Título
+        type: string
+        required: true
+      - name: text
+        label: Texto
+        type: text
+        required: true
+      required: true
+    - name: cta_heading
+      label: Título del llamado final
+      type: string
+      description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
+      required: true
+  - name: commercial
+    label: Página comercial
+    type: object
+    fields:
+    - name: heading
+      label: Título
+      type: string
+      description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
+      required: true
+    - name: lead
+      label: Texto
+      type: text
+      description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
+      required: true
+    - name: proactive_heading
+      label: Título «planifica»
+      type: string
+      description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
+      required: true
+    - name: proactive_lead
+      label: Texto «planifica»
+      type: text
+      description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
+      required: true
+    - name: proactive
+      label: Puntos «planifica»
+      type: object
+      list:
+        collapsible:
+          collapsed: true
+          summary: '{fields.title}'
+      fields:
+      - name: title
+        label: Título
+        type: string
+        required: true
+      - name: text
+        label: Texto
+        type: text
+        required: true
+      required: true
+    - name: risk_heading
+      label: Título «reduce riesgos»
+      type: string
+      description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
+      required: true
+    - name: risks
+      label: Riesgos que se reducen
+      type: object
+      list:
+        collapsible:
+          collapsed: true
+          summary: '{fields.title}'
+      fields:
+      - name: title
+        label: Título
+        type: string
+        required: true
+      - name: text
+        label: Texto
+        type: text
+        required: true
+      required: true
+    - name: cta_heading
+      label: Título del llamado final
+      type: string
+      description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
+      required: true
+    - name: cta_lead
+      label: Texto del llamado final
+      type: text
+      description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
+      required: true
+  - name: schedule
+    label: Página de agenda (formulario)
+    type: object
+    fields:
+    - name: heading
+      label: Título
+      type: string
+      description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
+      required: true
+    - name: lead
+      label: Texto
+      type: text
+      description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
+      required: true
+- name: diagrams
+  label: Diagramas
+  type: group
+  description: Títulos, descripciones y nombres de los puntos numerados de cada diagrama.
+  items:
+  - name: diagram-water-heater
+    label: Calentador de agua
+    type: file
+    path: content/diagrams/water-heater.yml
+    format: yaml
+    fields:
+    - name: title
+      label: Título
+      type: string
+      required: true
+    - name: description
+      label: Descripción
+      type: text
+      required: true
+    - name: points
+      label: Nombres de los puntos numerados
+      type: string
+      description: Uno por cada número del dibujo, en orden (exactamente 21).
+      required: true
+      list:
+        min: 21
+        max: 21
+        collapsible: false
+  - name: diagram-bathtub
+    label: Baño con tina
+    type: file
+    path: content/diagrams/bathtub.yml
+    format: yaml
+    fields:
+    - name: title
+      label: Título
+      type: string
+      required: true
+    - name: description
+      label: Descripción
+      type: text
+      required: true
+    - name: points
+      label: Nombres de los puntos numerados
+      type: string
+      description: Uno por cada número del dibujo, en orden (exactamente 20).
+      required: true
+      list:
+        min: 20
+        max: 20
+        collapsible: false
+  - name: diagram-shower
+    label: Baño con ducha
+    type: file
+    path: content/diagrams/shower.yml
+    format: yaml
+    fields:
+    - name: title
+      label: Título
+      type: string
+      required: true
+    - name: description
+      label: Descripción
+      type: text
+      required: true
+    - name: points
+      label: Nombres de los puntos numerados
+      type: string
+      description: Uno por cada número del dibujo, en orden (exactamente 21).
+      required: true
+      list:
+        min: 21
+        max: 21
+        collapsible: false
+  - name: diagram-kitchen
+    label: Cocina
+    type: file
+    path: content/diagrams/kitchen.yml
+    format: yaml
+    fields:
+    - name: title
+      label: Título
+      type: string
+      required: true
+    - name: description
+      label: Descripción
+      type: text
+      required: true
+    - name: points
+      label: Nombres de los puntos numerados
+      type: string
+      description: Uno por cada número del dibujo, en orden (exactamente 23).
+      required: true
+      list:
+        min: 23
+        max: 23
+        collapsible: false
+  - name: diagram-repiping
+    label: Casa completa (re-piping)
+    type: file
+    path: content/diagrams/repiping.yml
+    format: yaml
+    fields:
+    - name: title
+      label: Título
+      type: string
+      required: true
+    - name: description
+      label: Descripción
+      type: text
+      required: true
+    - name: points
+      label: Nombres de los puntos numerados
+      type: string
+      description: Uno por cada número del dibujo, en orden (exactamente 22).
+      required: true
+      list:
+        min: 22
+        max: 22
+        collapsible: false
+  - name: diagram-sewer
+    label: Líneas de drenaje y alcantarillado
+    type: file
+    path: content/diagrams/sewer.yml
+    format: yaml
+    fields:
+    - name: title
+      label: Título
+      type: string
+      required: true
+    - name: description
+      label: Descripción
+      type: text
+      required: true
+  - name: diagram-panel
+    label: Panel de breakers
+    type: file
+    path: content/diagrams/panel.yml
+    format: yaml
+    fields:
+    - name: title
+      label: Título
+      type: string
+      required: true
+    - name: description
+      label: Descripción
+      type: text
+      required: true
+  - name: diagram-disconnect
+    label: Interruptor de desconexión
+    type: file
+    path: content/diagrams/disconnect.yml
+    format: yaml
+    fields:
+    - name: title
+      label: Título
+      type: string
+      required: true
+    - name: description
+      label: Descripción
+      type: text
+      required: true
+  - name: diagram-fixtures
+    label: Lámparas y ventiladores de techo
+    type: file
+    path: content/diagrams/fixtures.yml
+    format: yaml
+    fields:
+    - name: title
+      label: Título
+      type: string
+      required: true
+    - name: description
+      label: Descripción
+      type: text
+      required: true
+  - name: diagram-receptacles
+    label: Tomacorrientes e interruptores
+    type: file
+    path: content/diagrams/receptacles.yml
+    format: yaml
+    fields:
+    - name: title
+      label: Título
+      type: string
+      required: true
+    - name: description
+      label: Descripción
+      type: text
+      required: true
+settings:
+  config: false

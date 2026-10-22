@@ -1,0 +1,119 @@
+# Home page text. Wrap words in *asterisks* to show them in red italics in a heading.
+hero:
+  badge: Free
+  badge_text: On-site evaluations & estimates
+  heading: Florida’s trusted, *licensed & insured* experts.
+  trades:
+  - Plumbing
+  - Electrical
+  - Remodeling
+  - Building Inspections
+  - Trade Work
+  subtitle: Our quality craftsmanship enhances the safety, elegance and functionality of your home or property.
+stats:
+- number: '35'
+  plus: true
+  label: Years of experience serving Florida homes & properties
+- number: '50'
+  plus: true
+  label: Years of combined experience across our team
+- number: '3'
+  plus: false
+  label: Contractor licenses — building, electrical & plumbing
+- number: $0
+  plus: false
+  label: Cost for your on-site evaluation & estimate
+divisions:
+  label: Our divisions
+  heading: Three divisions. *One standard.*
+  intro: Licensed plumbers, electricians and builders under one company — so your project is evaluated, permitted and completed by specialists in every trade.
+  plumbing:
+    title: Plumbing Division
+    text: Leaks, drains, water heaters, re-piping and sewer lines.
+    bullets:
+    - Leak detection & repair
+    - Water heaters
+    - Drain & sewer lines
+    - Re-piping
+  electrical:
+    title: Electrical Division
+    text: Panels, circuits, lighting, fans and generators.
+    bullets:
+    - Breaker panel corrections
+    - Circuits & troubleshooting
+    - Lighting & ceiling fans
+    - Generators & transfer switches
+  building:
+    title: Building & Remodeling Division
+    text: Remodeling, building inspections and trade work.
+    bullets:
+    - Remodeling
+    - Building inspections
+    - Trade work
+    - Permits & inspections
+thermal:
+  label: Infrared thermography
+  heading: See what the *eye can’t.*
+  lead: Our in-house infrared-certified thermography specialists diagnose hidden plumbing leaks and electrical faults — helping pinpoint what’s wrong before anything is opened up.
+  points:
+  - title: Hidden plumbing leaks
+    text: Moisture behind walls, floors and ceilings shows up as a temperature difference.
+  - title: Electrical faults
+    text: Overheating breakers, loose connections and overloaded circuits stand out immediately.
+  - title: Precise evaluations
+    text: Pinpointing the problem means fewer surprises and more accurate estimates.
+why:
+  label: Trust & credentials
+  heading: Why homeowners, property managers & contractors *choose us.*
+  lead: Experience, credentials and transparency on every project — large or small.
+  items:
+  - title: Over 35 years of experience
+    text: Decades of plumbing, electrical and building work across Florida’s Treasure Coast and Gold Coast.
+  - title: Licensed, insured & code compliant
+    text: Experienced, competent & detail-oriented licensed & insured code-compliant plumbers, electricians and builders.
+  - title: In-house infrared thermography
+    text: Infrared-certified thermography specialists for diagnosing plumbing leaks or electrical faults.
+  - title: Transparent estimates
+    text: Clear, detailed estimates — no surprises.
+  - title: Efficient permitting & inspections
+    text: Our operation supports efficient building department permitting & inspections.
+steps:
+  label: How it works
+  heading: Three simple *steps.*
+  lead: From your first call to the finished repair, you stay informed and in control of every decision.
+  items:
+  - title: Schedule your visit
+    text: We assess your plumbing or electrical needs.
+  - title: Detailed evaluation with options
+    text: Our licensed contractors will explain your options and you will decide whether to repair or replace any damaged item.
+  - title: We repair or replace
+    text: We repair or replace the damaged equipment.
+diagnostics:
+  label: Visual diagnostics
+  heading: Know where *problems start.*
+  lead: Our diagrams help you identify the areas where a leak, deterioration, break or electrical fault can occur.
+commercial:
+  label: Commercial clients
+  heading: On time. *On budget.*
+  lead: Our meticulous work reduces labor costs, on-site corrections and roughing relocations that cause delays, material waste and unnecessary costs — keeping schedules flowing uninterrupted.
+  benefits:
+  - title: Fewer corrections
+    text: Reduced on-site corrections and roughing relocations.
+  - title: Less waste
+    text: Less material waste and unnecessary costs.
+  - title: Schedules on track
+    text: Work that keeps schedules flowing uninterrupted.
+  - title: Predictable budgets
+    text: Plan repairs and budget effectively.
+about:
+  label: About us
+  heading: Your partner in plumbing, electrical *or building repairs.*
+  paragraphs:
+  - U.S. Construction & Plumbing Authority and PSL Plumbing & Drains are dedicated to protecting Florida homes through advanced diagnostics, engineering expertise, and reliable repair services.
+  - Our team, with over 50 years of combined experience, will provide the quality craftsmanship you expect and deserve.
+  corporate_line: Divisions of CIA Solutions, Corp. JV Triphase Development Corp.
+  quote: The quality craftsmanship you expect and deserve.
+areas:
+  label: Service areas
+  heading: Two coasts. *One standard of quality.*
+  lead: Servicing Florida’s Treasure Coast from Port St. Lucie and Florida’s Gold Coast from Boca Raton.

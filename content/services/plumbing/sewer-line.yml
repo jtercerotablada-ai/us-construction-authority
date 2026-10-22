@@ -1,0 +1,15 @@
+title: Sewer Line Clogs & Breaks
+summary: Main line clogs and broken sewer lines.
+intro: A clogged or broken sewer line affects the entire property. We evaluate the interior drain lines and underground sewer connections to locate the clog or break and restore proper flow.
+options:
+- Clog
+- Break
+reasons:
+- Several drains backing up at the same time
+- Sewage odors inside or outside the home
+- Soggy or sunken patches in the yard
+- Toilets gurgling when other fixtures drain
+icon: house-flood-water
+diagram: sewer
+order: 4
+visible: true

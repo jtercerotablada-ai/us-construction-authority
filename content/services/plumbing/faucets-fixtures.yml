@@ -1,0 +1,15 @@
+title: Faucets & Fixtures
+summary: Repair leaks or replace faucets and fixtures.
+intro: A dripping faucet wastes water every day. We repair leaking faucets and fixtures or replace them with new ones, installed to code.
+options:
+- Repair Leak
+- Replace
+reasons:
+- Dripping faucet or spout
+- Water leaking under the sink
+- Loose or hard-to-turn handles
+- Reduced or uneven flow
+icon: faucet
+diagram: kitchen
+order: 8
+visible: true

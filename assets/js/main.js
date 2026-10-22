@@ -269,11 +269,14 @@
       stage.innerHTML = '';
       stage.appendChild(frag);
       var img = stage.querySelector('img');
-      if (img) img.removeAttribute('loading');
+      if (img) {
+        img.removeAttribute('loading');
+        if (img.hasAttribute('srcset')) img.setAttribute('sizes', '100vw');
+      }
       lbList.innerHTML = legendEl ? legendEl.innerHTML : '';
       inner.classList.toggle('no-legend', !legendEl);
-      lbTitle.innerHTML = trigger.dataset.title || 'Diagram';
-      lbText.innerHTML = trigger.dataset.text || '';
+      lbTitle.textContent = trigger.dataset.title || 'Diagram';
+      lbText.textContent = trigger.dataset.text || '';
       bindPins(stage.querySelector('.dg-frame'), lbList);
       opener = document.activeElement;
       lb.classList.add('is-open');
@@ -347,7 +350,7 @@
         'Project details:',
         d.get('details') || '-'
       ].join('\n');
-      window.location.href = 'mailto:cia4solutions@gmail.com'
+      window.location.href = 'mailto:' + (form.getAttribute('data-email') || 'cia4solutions@gmail.com')
         + '?subject=' + encodeURIComponent('Free Evaluation Request - ' + d.get('firstName'))
         + '&body=' + encodeURIComponent(body);
       card.classList.add('is-sent');

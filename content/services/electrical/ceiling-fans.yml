@@ -1,0 +1,16 @@
+title: Ceiling Fans
+summary: Replace, repair or install new fans.
+intro: We repair and replace ceiling fans and install new ones — properly supported, balanced and wired.
+options:
+- Replace
+- Repair
+- New Install
+reasons:
+- Wobbling or noisy fan
+- Fan or light kit not responding
+- Fan running at only one speed
+- Burning smell from the fan
+icon: fan
+diagram: fixtures
+order: 11
+visible: true

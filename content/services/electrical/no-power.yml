@@ -1,0 +1,16 @@
+title: No or Intermittent Power
+summary: Troubleshooting power loss and flickering.
+intro: Partial or intermittent power loss often points to a loose connection or a failing component. We use thermal imaging to locate faults in the panel and service disconnect.
+options:
+- No Power
+- Intermittent Power
+- Troubleshoot
+reasons:
+- Part of the home without power
+- Flickering or dimming lights
+- Power that comes and goes
+- Warm outlets, switches or panel covers
+icon: power-off
+diagram: disconnect
+order: 6
+visible: true

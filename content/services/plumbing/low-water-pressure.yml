@@ -1,0 +1,18 @@
+title: Low Water Pressure
+summary: Whole house or a single fixture.
+intro: Low pressure can come from a clogged aerator, clogged lines or a broken water line. We find the cause — whether it affects one faucet or the whole house — and correct it.
+options:
+- Whole House
+- Faucet / Fixture
+- Clogged Lines
+- Clogged Aerator
+- Broken Water Line
+reasons:
+- Weak flow at one or more fixtures
+- Pressure drops when another fixture is used
+- Sputtering or irregular water flow
+- Pressure that has declined over time
+icon: gauge-simple
+diagram: repiping
+order: 6
+visible: true

@@ -1,0 +1,16 @@
+title: Dangerous Conditions
+summary: Conditions that require immediate attention.
+intro: Some electrical conditions require immediate attention. **If you see smoke, flames or sparking, leave the area and call 911 first — do not touch the panel.** For any of the warning signs below, contact us to schedule an evaluation as soon as possible.
+options:
+- Evaluation
+- Troubleshoot
+- Repair
+reasons:
+- A burning smell or smoke from outlets or the panel
+- Scorch marks, sparks or melted wire
+- A panel that is hot to the touch
+- Exposed live wires
+icon: triangle-exclamation
+diagram: panel
+order: 14
+visible: true

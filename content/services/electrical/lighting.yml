@@ -1,0 +1,16 @@
+title: Lighting Issues
+summary: Switches, fixtures and bulbs.
+intro: From a faulty switch to a failing fixture, we diagnose lighting issues and replace the switch, fixture or bulb as needed.
+options:
+- Replace Switch
+- Replace Fixture
+- Replace Bulb
+reasons:
+- Lights flickering or buzzing
+- Bulbs burning out quickly
+- Switches that don’t work consistently
+- Discoloration around a fixture
+icon: lightbulb
+diagram: fixtures
+order: 8
+visible: true

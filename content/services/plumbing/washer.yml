@@ -1,0 +1,15 @@
+title: Washer Plumbing
+summary: Washer drains and leaking connections.
+intro: We clear washing machine drains and repair leaking supply connections to protect your floors.
+options:
+- Clear Drain
+- Leaking Connection(s)
+reasons:
+- Water overflowing from the standpipe
+- Water around the washer after a cycle
+- Worn or bulging supply hoses
+- Slow draining washer
+icon: soap
+diagram: none
+order: 12
+visible: true

@@ -764,3 +764,24 @@ fieldset.field legend { font-size: .78rem; font-weight: 700; color: var(--ink-2)
 .hv-spot:focus-visible .hv-dot { outline: 3px solid var(--blue); outline-offset: 3px; }
 @media (max-width: 720px) { .hv-spot { width: 30px; height: 30px; } .hv-dot { width: 13px; height: 13px; } .hv-tip { display: none; } }
 @media print { .hero-visual { display: none; } }
+
+/* ---------------------------------------------------------------- CMS: announcement bar + project gallery */
+.announce { background: var(--red); color: #fff; font-size: .86rem; font-weight: 600; }
+.announce__inner { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px 16px; max-width: var(--container); margin: 0 auto; padding: 10px 32px; text-align: center; }
+.announce a { display: inline-flex; align-items: center; gap: 8px; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
+.announce a:hover { text-decoration-thickness: 2px; }
+.announce a:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+.gallery__item { margin: 0; border-radius: 18px; overflow: hidden; background: var(--white); border: 1px solid var(--line); cursor: zoom-in; transition: transform .45s var(--ease), box-shadow .45s var(--ease); }
+.js .gallery__item.reveal { transition: opacity 1s var(--ease), translate 1s var(--ease), transform .45s var(--ease), box-shadow .45s var(--ease); }
+.gallery__item:hover { transform: translateY(-6px); box-shadow: 0 30px 70px -30px rgba(12,20,36,.3); }
+.gallery__item:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+.gallery__item .dg-frame { overflow: hidden; background: #eef1f6; }
+.gallery__item img { aspect-ratio: 4 / 3; object-fit: cover; transition: transform .9s var(--ease); }
+.gallery__item:hover img { transform: scale(1.04); }
+.gallery__item figcaption { padding: 16px 20px 18px; font-weight: 600; color: var(--ink); }
+@media (max-width: 1024px) { .gallery { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 720px) { .gallery { grid-template-columns: 1fr; } .announce__inner { padding: 9px 16px; font-size: .8rem; } }
+@media (prefers-reduced-motion: reduce) { .gallery__item, .gallery__item img { transition: none; } .gallery__item:hover, .gallery__item:hover img { transform: none; } }
+@media (forced-colors: active) { .announce { border-bottom: 1px solid CanvasText; } }
+@media print { .announce { display: none; } }

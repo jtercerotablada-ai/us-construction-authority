@@ -1,0 +1,17 @@
+title: Leak Detection & Repair
+summary: Faucets, valves, pipes and hose bibs.
+intro: Hidden leaks cause damage long before they are visible. Our infrared-certified thermography specialists help pinpoint where water is escaping, so repairs are precise and walls are opened only where needed.
+options:
+- Faucet
+- Speedy Valve
+- Pipe
+- Hose Bib
+reasons:
+- An unexplained increase in your water bill
+- Damp spots or stains on walls, ceilings or floors
+- Musty odors or signs of mold
+- The sound of running water when every fixture is off
+icon: droplet
+diagram: repiping
+order: 2
+visible: true

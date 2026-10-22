@@ -1,0 +1,15 @@
+title: Dishwasher Plumbing
+summary: Leaking or clogged dishwashers.
+intro: We correct dishwasher leaks and clogs at the supply, drain and connection points under your kitchen sink.
+options:
+- Leaking
+- Clogged
+reasons:
+- Water on the floor in front of the dishwasher
+- Standing water left in the dishwasher
+- Dishwasher not draining
+- Water damage in the cabinet next to it
+icon: sink
+diagram: kitchen
+order: 10
+visible: true

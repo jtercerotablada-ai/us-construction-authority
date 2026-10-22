@@ -1,0 +1,17 @@
+title: Receptacles & Switches
+summary: Repair, replace, relocate or add.
+intro: We repair, replace, relocate and add receptacles and switches — and find the faults that make them fail.
+options:
+- Repair
+- Replace
+- Relocate
+- New Addition
+reasons:
+- Outlets or switches that are warm to the touch
+- Sparks when plugging in
+- Loose plugs or cracked covers
+- Dead outlets
+icon: plug
+diagram: receptacles
+order: 7
+visible: true

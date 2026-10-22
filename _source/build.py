@@ -1,281 +1,405 @@
 """Static site generator for U.S. Construction & Plumbing Authority.
 
-Run:  python3 _source/build.py   (from anywhere). Writes every HTML page, the
-icon subset, robots.txt, sitemap.xml and 404.html into the site root.
-Needs: Pillow (image sizes) and fonttools+brotli (icon font subset).
-"""
-import os, re, json
-from html import unescape
+All client-editable copy lives in ../content/*.yml (edited through Pages CMS, see ../.pages.yml).
+Layout, styles, scripts and diagram pin positions live here and in ../assets.
 
-OUT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = os.path.dirname(os.path.abspath(__file__))
-os.makedirs(os.path.join(OUT, "services"), exist_ok=True)
+Run:   pip install -r requirements.txt && python3 _source/build.py
+Output: ../dist  (deploy this folder; Cloudflare Pages / Vercel run the same command)
+Env:    SITE_URL=https://www.example.com   -> canonical URLs, og:url/og:image, sitemap.xml
+        OUT_DIR=/some/path                 -> alternative output folder
+
+If the content has a problem (missing field, unknown icon, missing photo...) the build stops with
+a clear message and exit code 1, so the host keeps serving the last good version of the site.
+"""
+import os, re, sys, json, shutil
+from html import unescape, escape
+from urllib.parse import quote, quote_plus, unquote
+
+import yaml
+from PIL import Image, ImageOps
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SRC = os.path.join(ROOT, "_source")
+CONTENT = os.path.join(ROOT, "content")
+OUT = os.path.abspath(os.environ.get("OUT_DIR") or os.path.join(ROOT, "dist"))
+UPLOADS = "assets/img/uploads"          # client photo uploads (Pages CMS media folder)
 
 # Production URL (no trailing slash). Leave empty until the domain is confirmed;
 # canonical, og:url, absolute og:image and sitemap.xml are emitted only when set.
 SITE_URL = os.environ.get("SITE_URL", "").rstrip("/")
-SITE_NAME = "U.S. Construction & Plumbing Authority"
+# Cloudflare Pages (CF_PAGES=1) serves /page.html at /page, so canonical URLs and the sitemap drop ".html" there.
+PRETTY_URLS = os.environ.get("CF_PAGES") == "1"
 
-try:
-    from PIL import Image
-    def img_size(name):
-        with Image.open(os.path.join(OUT, "assets", "img", name)) as im:
-            return im.size
-except ImportError:  # sizes are an optimisation only
-    def img_size(name):
+def public_url(path):
+    if path in ("", "index.html"):
+        path = ""
+    elif PRETTY_URLS and path.endswith(".html"):
+        path = path[:-5]
+    return f"{SITE_URL}/{path}"
+
+# ================================================================== content loading & validation
+ERRORS = []
+PARTIAL = OUT + ".partial"   # pages are written here and replace OUT only when the whole build succeeded
+
+def fail(msg):
+    ERRORS.append(msg)
+
+def stop_on_errors():
+    if not ERRORS:
+        return
+    print("\nNO SE PUBLICÓ: hay que corregir el contenido / BUILD STOPPED: fix the content below\n", file=sys.stderr)
+    for msg in ERRORS:
+        print("  - " + msg, file=sys.stderr)
+    print("\nLa versión anterior del sitio sigue en línea. / The previous version stays online.\n", file=sys.stderr)
+    shutil.rmtree(PARTIAL, ignore_errors=True)
+    sys.exit(1)
+
+def load_required(rel):
+    """A file the whole site depends on: stop right away if it can't be read."""
+    data = load_yaml(rel)
+    if data is None:
+        stop_on_errors()
+    return data
+
+class Loader(yaml.SafeLoader):
+    """YAML 1.2 core schema, like the files Pages CMS writes: Yes/No/On/Off and 8:30 stay text."""
+
+Loader.yaml_implicit_resolvers = {
+    ch: [r for r in rs if r[0].rsplit(":", 1)[1] not in ("bool", "int", "float", "timestamp", "value")]
+    for ch, rs in yaml.SafeLoader.yaml_implicit_resolvers.items()}
+Loader.add_implicit_resolver("tag:yaml.org,2002:bool", re.compile(r"^(?:true|True|TRUE|false|False|FALSE)$"), list("tTfF"))
+Loader.add_implicit_resolver("tag:yaml.org,2002:int", re.compile(r"^(?:[-+]?[0-9]+|0x[0-9a-fA-F]+)$"), list("-+0123456789"))
+Loader.add_implicit_resolver("tag:yaml.org,2002:float", re.compile(
+    r"^(?:[-+]?(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?)(?:[eE][-+]?[0-9]+)?|[-+]?\.(?:inf|Inf|INF)|\.(?:nan|NaN|NAN))$"), list("-+0123456789."))
+
+def load_yaml(rel):
+    path = os.path.join(ROOT, rel)
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = yaml.load(f, Loader=Loader)
+    except FileNotFoundError:
+        fail(f"{rel}: no existe el archivo.")
+        return {}
+    except yaml.YAMLError as err:
+        mark = getattr(err, "problem_mark", None)
+        near = f" cerca de la línea {mark.line + 1}" if mark else ""
+        fail(f"{rel}: el archivo tiene un formato inválido{near}.")
         return None
+    if not isinstance(data, dict):
+        fail(f"{rel}: el archivo está vacío o tiene un formato inválido.")
+        return None
+    return data
 
-TC = ("(772) 289-2344", "tel:+17722892344")
-GC = ("(954) 991-9500", "tel:+19549919500")
-EMAIL = "cia4solutions@gmail.com"
-LIC = "CBC1264899 &middot; EC13003241 &middot; CFC1431064"
+def get(d, key, where, kind=str, required=True, default=None):
+    """Read one field, checking its type. Strings are stripped."""
+    v = d.get(key, default) if isinstance(d, dict) else default
+    if kind is str:
+        if v is None:
+            v = ""
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            v = str(v)
+        if not isinstance(v, str):
+            fail(f"{where}: el campo '{key}' debe ser texto.")
+            return default or ""
+        v = v.strip()
+        if required and not v:
+            fail(f"{where}: el campo '{key}' está vacío.")
+        return v
+    if kind is list:
+        if v is None:
+            v = []
+        if not isinstance(v, list):
+            fail(f"{where}: el campo '{key}' debe ser una lista.")
+            return []
+        if required and not v:
+            fail(f"{where}: la lista '{key}' está vacía.")
+        return v
+    if kind is bool:
+        return bool(v)
+    if kind is dict:
+        if not isinstance(v, dict):
+            if required:
+                fail(f"{where}: falta la sección '{key}'.")
+            return {}
+        return v
+    if kind is int:
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            if required:
+                fail(f"{where}: el campo '{key}' debe ser un número.")
+            return default if default is not None else 0
+    return v
 
-# ------------------------------------------------------------------ data
-DIAGRAMS = {
-    "water-heater": ("dg-water-heater.jpg", "Water Heater", "This diagram shows the various points where a water heater tank and its connections can leak and fail.", "plumbing"),
-    "bathtub": ("dg-bathtub.jpg", "Bathroom with Bathtub", "This diagram shows the areas where leaks can occur at plumbing connection points in a typical bathroom with a bathtub.", "plumbing"),
-    "shower": ("dg-shower.jpg", "Bathroom Shower", "This diagram shows the areas where leaks can occur at various points in a shower enclosure area and in the shower pan base.", "plumbing"),
-    "kitchen": ("dg-kitchen.jpg", "Kitchen", "This diagram shows every possible area where the kitchen plumbing components may leak.", "plumbing"),
-    "repiping": ("dg-repiping.jpg", "Re-Piping", "Homes built with aging water piping may require a full or partial re-piping. This illustration shows the typical pipe locations and the areas where a leak, deterioration or a break may occur.", "plumbing"),
-    "sewer": ("dg-sewer.jpg", "Sewer &amp; Drain Lines", "This diagram illustrates the connection points of the interior drain lines and underground sewer lines.", "plumbing"),
-    "panel": ("dg-panel.jpg", "Circuit Breaker Panel", "This diagram shows where faults may arise or may be present in an interior or exterior circuit breaker panel and its components.", "electrical"),
-    "disconnect": ("dg-disconnect.jpg", "Service Disconnect Switch", "This diagram shows where faults may be found using thermal imaging equipment in an interior or exterior electrical service disconnect switch and its components.", "electrical"),
-    "receptacles": ("dg-receptacles.jpg", "Receptacles &amp; Light Switches", "This image shows where electrical faults can be found in receptacles and/or in switches.", "electrical"),
-    "fixtures": ("dg-fixtures.jpg", "Lamp Fixtures &amp; Ceiling Fans", "This diagram illustrates some of the areas where a lamp fixture or ceiling fan may fail, causing electrical issues.", "electrical"),
-}
+def texts(d, key, where, required=True):
+    """A list of non-empty strings."""
+    items = [str(x).strip() for x in get(d, key, where, list, False) if x is not None and str(x).strip()]
+    if required and not items:
+        fail(f"{where}: la lista '{key}' está vacía.")
+    return items
 
-# Numbered leak / fault points drawn over each diagram: (x %, y %, label)
-POINTS = {
-    "water-heater": [
-        (19, 7, "Shutoff valve (inlet)"), (32, 7, "Flexible connector (inlet)"), (20, 15, "Expansion tank connection"),
-        (43, 12, "Cold-water inlet fitting"), (50, 15, "Anode rod port"), (58, 12, "Hot-water outlet fitting"),
-        (65, 7, "Flexible connector (outlet)"), (86, 17, "Temperature &amp; pressure relief valve"), (90, 31, "T&amp;P discharge pipe joint"),
-        (66, 23, "Upper side penetration fitting"), (55, 40, "Upper heating element gasket"), (75, 40, "Upper thermostat &amp; cover"),
-        (41, 52, "Tank body corrosion pinhole"), (55, 53, "Lower heating element gasket"), (50, 68, "Sediment &amp; scale buildup"),
-        (33, 71, "Drain valve &amp; threads"), (48, 80, "Bottom seam corrosion"), (63, 91, "Drain pan leak / overflow"),
-        (82, 61, "Gas control valve"), (93, 66, "Gas connector (flex)"), (79, 76, "Burner &amp; pilot assembly"),
-    ],
-    "bathtub": [
-        (13, 10, "Wall supply pipe joint (behind wall)"), (15, 30.5, "Toilet tank fill valve connection"), (11, 38, "Toilet shutoff valve"),
-        (25, 51, "Toilet base / wax ring"), (47, 12, "Faucet handle &amp; spout"), (49, 27, "Drain flange under sink"),
-        (38, 36, "Sink shutoff valves &amp; supply lines"), (51, 40, "P-trap slip nuts"), (49, 47, "Vanity drain connection"),
-        (69, 6, "Showerhead connection"), (66, 21, "Shower valve (behind escutcheon)"), (70, 31, "Tub spout connection"),
-        (69, 37, "Tub overflow gasket"), (72, 45, "Tub drain gasket / stopper"), (88, 54, "Tub waste pipe joint (behind wall)"),
-        (43, 61, "Floor drain grate &amp; body"), (47, 74, "Floor drain trap slip nuts"), (70, 76, "Main waste stack joint (under floor)"),
-        (15, 62, "Water heater flexible connections"), (22, 80, "Water heater T&amp;P discharge pipe"),
-    ],
-    "shower": [
-        (37, 4, "Deteriorated caulk &mdash; wall corner"), (52, 4, "Shower arm penetration"), (56, 10, "Showerhead connection"),
-        (52, 21, "Valve trim plate seal"), (44, 24, "Body spray fittings"), (64, 21, "Handheld hose connection"),
-        (31, 24, "Niche shelf-to-wall joint"), (31, 30, "Niche bottom (ponding)"), (19, 21, "Waterproof membrane breach"),
-        (24, 45, "Bench top &amp; seams"), (48, 49, "Wall-to-pan intersection"), (52, 59, "Shower drain grate"),
-        (28, 63, "Curb &mdash; grout / slope failure"), (82, 36, "Supply pipes &amp; valve body (behind wall)"), (86, 17, "Glass door hinge / clamp"),
-        (86, 58, "Glass-to-curb seal"), (17, 72, "Pan liner fold / wrinkle"), (50, 72, "Drain flange &amp; weep holes"),
-        (43, 81, "Subfloor penetration / damage"), (50, 83, "Drain-to-trap connection"), (57, 94, "P-trap leak"),
-    ],
-    "kitchen": [
-        (31, 17, "Side sprayer / soap dispenser"), (40, 14, "Pull-down faucet &amp; hose"), (51, 15, "Filtered-water tap"),
-        (72, 8, "Pot filler joints"), (27, 24, "Sink rim &amp; caulk"), (76, 23, "Countertop dispenser / air gap"),
-        (40, 26, "Basket strainer"), (45, 36, "Disposal mounting"), (51, 45, "Disposal dishwasher inlet"),
-        (41, 56, "P-trap slip joints"), (16, 36, "Angle stop valves"), (31, 44, "Filter canisters"),
-        (18, 52, "Instant hot-water unit"), (68, 35, "Reverse-osmosis filter housings"), (56, 50, "RO storage tank"),
-        (67, 53, "Dishwasher supply &amp; drain connections"), (84, 55, "Dishwasher door seal / tub"), (46, 63, "Drain penetration (cabinet floor)"),
-        (40, 71, "In-wall supply joints"), (52, 80, "In-wall drain joints"), (12, 74, "Washer supply box"),
-        (88, 76, "Wall drain pipe penetration"), (79, 90, "Floor drain"),
-    ],
-    "repiping": [
-        (8, 69, "Main line connection"), (12, 64, "Water meter &amp; main shutoff valve"), (25, 60, "Water softener connections"),
-        (42, 61, "Supply manifold"), (61, 66, "Water heater connections"), (73, 68, "Expansion tank"),
-        (67, 7, "Vent stack roof flashing"), (53, 14, "Attic / ceiling pipe joints"), (38, 26, "Toilet supply connections"),
-        (52, 20, "Showerhead &amp; tub supply"), (80, 22, "Shower valve &amp; head"), (39, 33, "Floor-level supply lines"),
-        (19, 44, "Refrigerator water line"), (37, 46, "Kitchen sink supply"), (58, 48, "Drain &amp; vent stack joints"),
-        (66, 45, "Washer supply hoses"), (80, 46, "Utility sink"), (91, 43, "Hose bib (exterior)"),
-        (96, 62, "Exterior wall penetration"), (38, 77, "Floor drain"), (41, 86, "Under-slab drain joints &amp; cleanout"),
-        (92, 91, "Sewer line to street"),
-    ],
-}
+# ---------------------------------------------------------------- formatting helpers
+def e(s):
+    """Plain client text -> safe HTML text."""
+    return escape(str(s), quote=True)
 
-# slug, icon, title, short, intro, options, signs, diagram
-PLUMBING = [
-    ("water-heater", "fa-fire-flame-simple", "Water Heater Repair &amp; Replacement",
-     "Leaking tanks, failed elements and no hot water.",
-     "From leaking tanks and faulty relief valves to failed heating elements, our licensed plumbers diagnose the problem and explain whether a repair or a replacement makes more sense for your home.",
-     ["Repair", "Replace"],
-     ["No hot water, or hot water that runs out quickly", "Water pooling around the base or in the drain pan", "Rust-colored water or rumbling and popping noises", "Dripping from the temperature &amp; pressure relief valve"], "water-heater"),
-    ("leak-detection", "fa-droplet", "Leak Detection &amp; Repair",
-     "Faucets, valves, pipes and hose bibs.",
-     "Hidden leaks cause damage long before they are visible. Our infrared-certified thermography specialists help pinpoint where water is escaping, so repairs are precise and walls are opened only where needed.",
-     ["Faucet", "Speedy Valve", "Pipe", "Hose Bib"],
-     ["An unexplained increase in your water bill", "Damp spots or stains on walls, ceilings or floors", "Musty odors or signs of mold", "The sound of running water when every fixture is off"], "repiping"),
-    ("drain-clearing", "fa-filter", "Drain Clearing",
-     "Kitchen, bathroom sink, tub and shower drains.",
-     "Slow or blocked drains are more than an inconvenience. We clear kitchen, bathroom, tub and shower drains and identify the cause so the problem doesn&rsquo;t keep coming back.",
-     ["Kitchen", "Bathroom Sink", "Tub", "Shower"],
-     ["Water draining slowly or standing in the fixture", "Gurgling sounds from drains", "Recurring clogs in the same fixture", "Unpleasant odors coming from drains"], "sewer"),
-    ("sewer-line", "fa-house-flood-water", "Sewer Line Clogs &amp; Breaks",
-     "Main line clogs and broken sewer lines.",
-     "A clogged or broken sewer line affects the entire property. We evaluate the interior drain lines and underground sewer connections to locate the clog or break and restore proper flow.",
-     ["Clog", "Break"],
-     ["Several drains backing up at the same time", "Sewage odors inside or outside the home", "Soggy or sunken patches in the yard", "Toilets gurgling when other fixtures drain"], "sewer"),
-    ("re-piping", "fa-grip-lines", "Re-Piping",
-     "Full or partial whole-house re-piping.",
-     "Homes built with steel, galvanized, lead or cast iron water piping may require a full or partial re-pipe. We evaluate the condition of your piping and walk you through your options.",
-     ["Full Re-Pipe", "Partial Re-Pipe"],
-     ["Low water pressure throughout the home", "Discolored or rusty water", "Frequent leaks in different locations", "Visible corrosion on exposed pipes"], "repiping"),
-    ("low-water-pressure", "fa-gauge-simple", "Low Water Pressure",
-     "Whole house or a single fixture.",
-     "Low pressure can come from a clogged aerator, clogged lines or a broken water line. We find the cause — whether it affects one faucet or the whole house — and correct it.",
-     ["Whole House", "Faucet / Fixture", "Clogged Lines", "Clogged Aerator", "Broken Water Line"],
-     ["Weak flow at one or more fixtures", "Pressure drops when another fixture is used", "Sputtering or irregular water flow", "Pressure that has declined over time"], "repiping"),
-    ("toilet", "fa-toilet", "Toilet Repair &amp; Replacement",
-     "Clogs, leaks, running toilets and replacements.",
-     "From a stubborn clog to a full replacement, we handle every part of the toilet — wax rings, tank kits, flappers, bolts, flanges and fill valves.",
-     ["Unclog", "Replace Toilet", "Replace Wax Ring", "Replace Tank Kit", "Replace Flapper", "Replace Bolt Set", "Replace Flange", "Replace Fill Valve"],
-     ["Toilet runs constantly or refills on its own", "Water around the base of the toilet", "Weak flush or frequent clogs", "Toilet rocks or feels loose"], "bathtub"),
-    ("faucets-fixtures", "fa-faucet", "Faucets &amp; Fixtures",
-     "Repair leaks or replace faucets and fixtures.",
-     "A dripping faucet wastes water every day. We repair leaking faucets and fixtures or replace them with new ones, installed to code.",
-     ["Repair Leak", "Replace"],
-     ["Dripping faucet or spout", "Water leaking under the sink", "Loose or hard-to-turn handles", "Reduced or uneven flow"], "kitchen"),
-    ("shower-tub", "fa-shower", "Shower Body Repair &amp; Replacement",
-     "Shower valves, enclosures and shower pans.",
-     "Leaks can occur at various points in a shower enclosure and in the shower pan base. We repair or replace the shower body and address the connections that commonly fail.",
-     ["Repair", "Replace"],
-     ["Dripping shower head when turned off", "Difficulty controlling water temperature", "Stains or damage on the ceiling below the bathroom", "Loose tiles or damaged grout in the shower"], "shower"),
-    ("dishwasher", "fa-sink", "Dishwasher Plumbing",
-     "Leaking or clogged dishwashers.",
-     "We correct dishwasher leaks and clogs at the supply, drain and connection points under your kitchen sink.",
-     ["Leaking", "Clogged"],
-     ["Water on the floor in front of the dishwasher", "Standing water left in the dishwasher", "Dishwasher not draining", "Water damage in the cabinet next to it"], "kitchen"),
-    ("food-disposal", "fa-gears", "Food Disposal",
-     "Replace, repair or unjam disposals.",
-     "Whether your disposal is jammed, leaking or simply worn out, we repair, unjam or replace it.",
-     ["Replace", "Repair", "Unjam"],
-     ["Humming but not turning", "Leaks under the sink", "Slow draining kitchen sink", "Unusual grinding noises"], "kitchen"),
-    ("washer", "fa-soap", "Washer Plumbing",
-     "Washer drains and leaking connections.",
-     "We clear washing machine drains and repair leaking supply connections to protect your floors.",
-     ["Clear Drain", "Leaking Connection(s)"],
-     ["Water overflowing from the standpipe", "Water around the washer after a cycle", "Worn or bulging supply hoses", "Slow draining washer"], None),
-    ("water-filtration", "fa-glass-water", "Water Filters &amp; Softeners",
-     "Repair, replace or install new systems.",
-     "We repair and replace water filters and softeners, and install new systems for better water in your home.",
-     ["Repair", "Replace", "New Install"],
-     ["Water tastes or smells unusual", "Scale buildup on fixtures", "System leaking or not regenerating", "Filters that need replacing"], None),
-    ("main-shutoff-valve", "fa-wrench", "Main Shutoff Valve &amp; Hose Bibs",
-     "Main valve replacement from &frac34;&Prime; to 2&Prime;.",
-     "A working main shutoff valve is your first line of defense in a plumbing emergency. We replace main shutoff valves in common sizes from &frac34;&Prime; to 2&Prime; and replace hose bibs.",
-     ["&frac34;&Prime; Valve", "1-&frac14;&Prime; Valve", "1-&frac12;&Prime; Valve", "2&Prime; Valve", "Replace Hose Bib"],
-     ["The main valve is stuck or hard to turn", "The valve does not fully stop the water", "Leaks at the valve body or handle", "Dripping or broken outdoor hose bib"], "repiping"),
-]
+def hd(s):
+    """Heading: *words* become the red italic accent."""
+    return re.sub(r"\*(?!\s)(.+?)(?<!\s)\*", r"<em>\1</em>", e(s))
 
-ELECTRICAL = [
-    ("breaker-panel", "fa-table-cells", "Breaker Panel Corrections",
-     "Double taps, grounds, neutrals and bonding.",
-     "Many panel issues are invisible until they cause a failure. We correct double taps, separate grounds from neutrals, replace oxidized ground lugs, install ground bars, clean panel interiors and add bonding lugs where panels are not bonded.",
-     ["Double Taps: Circuit Breakers", "Double Taps: Line / Load Wires", "Double Taps: Grounds", "Separate Grounds from Neutrals", "Replace Oxidized Ground Lug", "Install Ground Bar", "Clean Panel Interior", "Add Bonding Lug"],
-     ["Breakers that trip frequently", "Warm panel cover or a burning smell", "Visible rust or corrosion inside the panel", "Buzzing or crackling sounds"], "panel"),
-    ("circuit-breakers", "fa-toggle-on", "Circuit Breaker Replacement",
-     "Oxidized, broken or incorrectly sized breakers.",
-     "A breaker must match the wire it protects. We replace oxidized and broken breakers, and replace undersized or oversized breakers with the correct size for the existing wire.",
-     ["Replace Oxidized Breaker(s)", "Replace Broken Breaker", "Undersized Breaker: Correct Size", "Oversized Breaker: Correct Size"],
-     ["A breaker that won&rsquo;t reset or stay on", "Breakers that feel hot to the touch", "Scorch marks on a breaker", "Lights dimming when appliances start"], "panel"),
-    ("panel-replacement", "fa-server", "Panel Replacement",
-     "Oxidized, warped, broken or undersized panels.",
-     "When a panel is oxidized, warped, has broken breaker retainers or is undersized for the home, we replace it with a properly sized panel.",
-     ["Oxidized Panel", "Warped Panel", "Broken Breaker Retainers", "Undersized Panel", "Other"],
-     ["Breakers that don&rsquo;t seat firmly", "Not enough space for new circuits", "Corrosion or heat damage in the panel", "An older panel that is no longer serviceable"], "panel"),
-    ("panel-wiring", "fa-ethernet", "Panel Wiring Corrections",
-     "Bushings, connectors and wire sizing.",
-     "Wires entering a panel need the correct protection and size. We install missing anti-short bushings, connectors and connector nuts, and correct wiring that is undersized for the load or incorrect for the application — including exposed live line wires.",
-     ["Missing Anti-Short Bushings", "Missing Connectors", "Missing Connector Nuts", "Undersized for the Load", "Incorrect for the Application", "Exposed Live Line Wires"],
-     ["Wires entering the panel without connectors", "Wires that are warm or discolored", "Exposed conductors at the panel", "Circuits that overload regularly"], "panel"),
-    ("circuits", "fa-code-branch", "Circuits &amp; New Circuit Additions",
-     "Repair, replace, add or troubleshoot circuits.",
-     "Whether you need a new dedicated circuit or a faulty circuit repaired, we design, install and troubleshoot circuits safely and to code.",
-     ["New Circuit Addition", "Repair", "Replace", "Troubleshoot"],
-     ["Breakers tripping when appliances run", "Outlets or lights that stop working", "Adding new appliances or equipment", "Extension cords used as permanent wiring"], "panel"),
-    ("no-power", "fa-power-off", "No or Intermittent Power",
-     "Troubleshooting power loss and flickering.",
-     "Partial or intermittent power loss often points to a loose connection or a failing component. We use thermal imaging to locate faults in the panel and service disconnect.",
-     ["No Power", "Intermittent Power", "Troubleshoot"],
-     ["Part of the home without power", "Flickering or dimming lights", "Power that comes and goes", "Warm outlets, switches or panel covers"], "disconnect"),
-    ("receptacles-switches", "fa-plug", "Receptacles &amp; Switches",
-     "Repair, replace, relocate or add.",
-     "We repair, replace, relocate and add receptacles and switches — and find the faults that make them fail.",
-     ["Repair", "Replace", "Relocate", "New Addition"],
-     ["Outlets or switches that are warm to the touch", "Sparks when plugging in", "Loose plugs or cracked covers", "Dead outlets"], "receptacles"),
-    ("lighting", "fa-lightbulb", "Lighting Issues",
-     "Switches, fixtures and bulbs.",
-     "From a faulty switch to a failing fixture, we diagnose lighting issues and replace the switch, fixture or bulb as needed.",
-     ["Replace Switch", "Replace Fixture", "Replace Bulb"],
-     ["Lights flickering or buzzing", "Bulbs burning out quickly", "Switches that don&rsquo;t work consistently", "Discoloration around a fixture"], "fixtures"),
-    ("interior-lighting", "fa-house-chimney-window", "Interior Lighting Fixtures",
-     "Repair, replace, relocate, add or remove.",
-     "We repair, replace, relocate, add and remove interior lighting fixtures to improve the safety and look of every room.",
-     ["Repair", "Replace", "Relocate", "New Addition", "Remove"],
-     ["Fixtures that flicker or stop working", "Loose or sagging fixtures", "Heat damage around a fixture", "Rooms that need better lighting"], "fixtures"),
-    ("exterior-lighting", "fa-sun", "Exterior Lighting Fixtures",
-     "Repair, replace, relocate, add or remove.",
-     "Exterior lighting adds security and curb appeal. We repair, replace, relocate, add and remove exterior fixtures.",
-     ["Repair", "Replace", "Relocate", "New Addition", "Remove"],
-     ["Outdoor lights not working", "Water or corrosion inside fixtures", "Areas of the property left dark", "Fixtures damaged by weather"], "fixtures"),
-    ("ceiling-fans", "fa-fan", "Ceiling Fans",
-     "Replace, repair or install new fans.",
-     "We repair and replace ceiling fans and install new ones — properly supported, balanced and wired.",
-     ["Replace", "Repair", "New Install"],
-     ["Wobbling or noisy fan", "Fan or light kit not responding", "Fan running at only one speed", "Burning smell from the fan"], "fixtures"),
-    ("water-heater-circuits", "fa-temperature-arrow-up", "Water Heater Circuits",
-     "Re-wiring, new circuits and tankless expansion.",
-     "Water heaters need a correctly sized, dedicated circuit. We re-wire water heater circuits, add new circuits and expand circuits for tankless water heaters.",
-     ["Re-Wiring", "New Circuit", "Tankless Circuit Expansion"],
-     ["Breaker trips when the water heater runs", "Switching to a tankless water heater", "Warm or discolored wiring at the heater", "No hot water with power issues"], None),
-    ("generators", "fa-car-battery", "Generators",
-     "Transfer switches, maintenance and panel connection.",
-     "Be ready for Florida storms. We install transfer switches, help with generator starting and maintenance, and connect generators safely to your home through a transfer switch.",
-     ["Transfer Switch Installation", "Starting / Maintenance", "Connection to Panel Circuit"],
-     ["Preparing for hurricane season", "Generator won&rsquo;t start or run properly", "Generator not connected safely to the home", "No transfer switch installed"], "disconnect"),
-    ("dangerous-conditions", "fa-triangle-exclamation", "Dangerous Conditions",
-     "Conditions that require immediate attention.",
-     "Some electrical conditions require immediate attention. <strong>If you see smoke, flames or sparking, leave the area and call 911 first &mdash; do not touch the panel.</strong> For any of the warning signs below, contact us to schedule an evaluation as soon as possible.",
-     ["Evaluation", "Troubleshoot", "Repair"],
-     ["A burning smell or smoke from outlets or the panel", "Scorch marks, sparks or melted wire", "A panel that is hot to the touch", "Exposed live wires"], "panel"),
-]
+def rich(s):
+    """Paragraph: **bold** and *italic*."""
+    s = re.sub(r"\*\*(?!\s)(.+?)(?<!\s)\*\*", r"<strong>\1</strong>", e(s))
+    return re.sub(r"\*(?!\s)(.+?)(?<!\s)\*", r"<em>\1</em>", s)
 
-BUILDING = [
-    ("fa-trowel-bricks", "Remodeling", "Kitchens, bathrooms and interior renovations crafted to enhance the elegance and functionality of your home."),
-    ("fa-magnifying-glass", "Building Inspections", "We evaluate critical components, identify deficiencies and highlight areas that may require attention."),
-    ("fa-screwdriver-wrench", "Trade Work", "Licensed plumbing, electrical and building trades working together on one project."),
-    ("fa-file-signature", "Permits &amp; Inspections", "Our operation supports efficient building department permitting &amp; inspections."),
-]
-
-# ------------------------------------------------------------------ layout
-NAV = [("plumbing.html", "Plumbing"), ("electrical.html", "Electrical"), ("building.html", "Building &amp; Remodeling"),
-       ("commercial.html", "Commercial"), ("index.html#about", "About")]
+def plain(s):
+    return re.sub(r"\*+", "", str(s))
 
 def attr(text):
     """Plain text safe for an HTML attribute (tags stripped, entities decoded then re-escaped)."""
     t = unescape(re.sub(r"<[^>]+>", "", text))
     return t.replace("&", "&amp;").replace('"', "&quot;")
 
+def tel(phone, where):
+    digits = re.sub(r"\D", "", phone)
+    if len(digits) == 10:
+        return "tel:+1" + digits
+    if len(digits) == 11 and digits.startswith("1"):
+        return "tel:+" + digits
+    fail(f"{where}: el teléfono '{phone}' no parece un número válido de 10 dígitos.")
+    return "tel:" + digits
+
+def safe_link(url, where):
+    url = (url or "").strip()
+    if not url:
+        return ""
+    if re.match(r"^(https?://|mailto:|tel:|/|#)", url) or re.match(r"^[\w\-./]+\.html(#[\w-]+)?$", url):
+        return url
+    fail(f"{where}: el enlace '{url}' no es válido (usa una dirección que empiece con https://).")
+    return ""
+
+ICONS = {  # value -> Font Awesome solid icon name (the CMS offers exactly these)
+    "faucet": "faucet", "faucet-drip": "faucet-drip", "droplet": "droplet", "shower": "shower", "toilet": "toilet",
+    "sink": "sink", "fire-flame-simple": "fire-flame-simple", "filter": "filter", "house-flood-water": "house-flood-water",
+    "grip-lines": "grip-lines", "gauge-simple": "gauge-simple", "gears": "gears", "soap": "soap", "glass-water": "glass-water",
+    "wrench": "wrench", "screwdriver-wrench": "screwdriver-wrench", "toolbox": "toolbox", "bolt": "bolt", "plug": "plug",
+    "lightbulb": "lightbulb", "fan": "fan", "sun": "sun", "power-off": "power-off", "toggle-on": "toggle-on",
+    "table-cells": "table-cells", "server": "server", "ethernet": "ethernet", "code-branch": "code-branch",
+    "car-battery": "car-battery", "temperature-arrow-up": "temperature-arrow-up", "temperature-half": "temperature-half",
+    "triangle-exclamation": "triangle-exclamation", "house-chimney-window": "house-chimney-window",
+    "trowel-bricks": "trowel-bricks", "magnifying-glass": "magnifying-glass", "file-signature": "file-signature",
+    "helmet-safety": "helmet-safety", "hammer": "hammer", "paint-roller": "paint-roller", "ruler-combined": "ruler-combined",
+    "building": "building", "city": "city", "shield-halved": "shield-halved", "clipboard-check": "clipboard-check",
+}
+LICENSE_ICONS = {"building": "fa-building", "electrical": "fa-bolt", "plumbing": "fa-faucet", "other": "fa-certificate"}
+
+def icon(value, where):
+    v = (value or "").strip()
+    if v not in ICONS:
+        if v:  # an empty value was already reported by get()
+            fail(f"{where}: el ícono '{v}' no está en la lista permitida.")
+        return "fa-wrench"
+    return "fa-" + ICONS[v]
+
+# ---------------------------------------------------------------- site.yml
+SITE = load_required("content/site.yml")
+W = "content/site.yml"
+SITE_NAME = get(SITE, "company_name", W)
+ABOUT_LINE = get(SITE, "about_line", W)
+LEGAL_NAME = get(SITE, "legal_name", W)
+EMAIL = get(SITE, "email", W)
+if EMAIL and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[A-Za-z]{2,}", EMAIL):
+    fail(f"{W}: el correo '{EMAIL}' no es válido.")
+
+OFFICES = []
+for i, o in enumerate(get(SITE, "offices", W, list), 1):
+    w = f"{W} → oficina {i}"
+    if not isinstance(o, dict):
+        fail(f"{w}: formato inválido.")
+        continue
+    phone = get(o, "phone", w)
+    OFFICES.append({
+        "region": get(o, "region", w), "phone": phone, "tel": tel(phone, w) if phone else "",
+        "street": get(o, "street", w), "city": get(o, "city", w), "state": get(o, "state", w),
+        "zip": get(o, "zip", w),
+    })
+if not OFFICES:
+    OFFICES.append({"region": "", "phone": "", "tel": "", "street": "", "city": "", "state": "", "zip": ""})
+PRIMARY = OFFICES[0]
+
+LICENSES = []
+for i, l in enumerate(get(SITE, "licenses", W, list), 1):
+    w = f"{W} → licencia {i}"
+    if not isinstance(l, dict):
+        fail(f"{w}: formato inválido.")
+        continue
+    kind = get(l, "type", w, required=False) or "other"
+    LICENSES.append({"type": kind if kind in LICENSE_ICONS else "other", "label": get(l, "label", w), "number": get(l, "number", w)})
+LIC = " &middot; ".join(e(l["number"]) for l in LICENSES)
+
+ANN = get(SITE, "announcement", W, dict, required=False)
+ANNOUNCE = None
+if get(ANN, "show", W, bool):
+    a_text = get(ANN, "text", W + " → aviso")
+    a_link = safe_link(get(ANN, "link", W + " → aviso", required=False), W + " → aviso")
+    ANNOUNCE = {"text": a_text, "link": a_link, "link_text": get(ANN, "link_text", W + " → aviso", required=False) or "Learn more"}
+
+CTA = get(SITE, "final_cta", W, dict)
+CTA_HEADING = get(CTA, "heading", W + " → final_cta")
+CTA_LEAD = get(CTA, "lead", W + " → final_cta")
+
+# ---------------------------------------------------------------- home.yml / pages.yml / gallery.yml
+HOME = load_required("content/home.yml")
+PAGES_TXT = load_required("content/pages.yml")
+GALLERY = load_required("content/gallery.yml")
+
+def section(data, key, where):
+    return get(data, key, where, dict)
+
+# ---------------------------------------------------------------- diagrams
+STRUCT = load_required("_source/diagrams.yml")
+DIAGRAMS, POINTS = {}, {}
+for key, st in STRUCT.items():
+    w = f"content/diagrams/{key}.yml"
+    txt = load_required(w)
+    title, desc = get(txt, "title", w), get(txt, "description", w)
+    labels = texts(txt, "points", w, required=False)
+    pins = st.get("pins") or []
+    if len(labels) != len(pins):
+        fail(f"{w}: el diagrama tiene {len(pins)} puntos numerados y necesita exactamente {len(pins)} nombres (hay {len(labels)}).")
+    DIAGRAMS[key] = (st["image"], e(title), e(desc), st["division"])
+    POINTS[key] = [(x, y, e(lbl)) for (x, y), lbl in zip(pins, labels)]
+DIAGRAM_ORDER = list(STRUCT.keys())
+
+# ---------------------------------------------------------------- services
+def load_services(division):
+    folder = os.path.join(CONTENT, "services", division)
+    items = []
+    for name in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
+        if not name.endswith((".yml", ".yaml")):
+            continue
+        slug = os.path.splitext(name)[0]
+        w = f"content/services/{division}/{name}"
+        if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", slug):
+            fail(f"{w}: el nombre del archivo solo puede tener letras minúsculas, números y guiones.")
+            continue
+        d = load_yaml(w)
+        if d is None:
+            continue
+        if not get(d, "visible", w, bool, default=True):
+            continue
+        dg = (get(d, "diagram", w, required=False) or "none")
+        if dg != "none" and dg not in DIAGRAMS:
+            fail(f"{w}: el diagrama '{dg}' no existe.")
+            dg = "none"
+        items.append((get(d, "order", w, int, required=False, default=999), slug, (
+            slug, icon(get(d, "icon", w), w), e(get(d, "title", w)), e(get(d, "summary", w)),
+            rich(get(d, "intro", w)), [e(x) for x in texts(d, "options", w)], [e(x) for x in texts(d, "reasons", w)],
+            None if dg == "none" else dg)))
+    if not items:
+        fail(f"content/services/{division}: no hay ningún servicio visible.")
+    return [s for _, _, s in sorted(items, key=lambda t: (t[0], t[1]))]
+
+PLUMBING = load_services("plumbing")
+ELECTRICAL = load_services("electrical")
+SERVICE_SLUGS = {"plumbing": {s[0] for s in PLUMBING}, "electrical": {s[0] for s in ELECTRICAL}}
+
+# ---------------------------------------------------------------- gallery
+GALLERY_HEADING = get(GALLERY, "heading", "content/gallery.yml")
+GALLERY_INTRO = get(GALLERY, "intro", "content/gallery.yml", required=False)
+PROJECTS = []
+for i, p in enumerate(get(GALLERY, "projects", "content/gallery.yml", list, required=False), 1):
+    w = f"content/gallery.yml → proyecto {i}"
+    if not isinstance(p, dict):
+        fail(f"{w}: formato inválido.")
+        continue
+    img = get(p, "image", w)
+    title = get(p, "title", w)
+    if not img:
+        continue
+    rel = unquote(img).lstrip("/")
+    if not rel.startswith(UPLOADS + "/") or ".." in rel or not os.path.isfile(os.path.join(ROOT, rel)):
+        fail(f"{w}: la foto '{img}' no se encuentra. Súbela de nuevo desde el panel.")
+        continue
+    if os.path.splitext(rel)[1].lower() not in (".jpg", ".jpeg", ".png", ".webp"):
+        fail(f"{w}: la foto '{img}' debe ser JPG, PNG o WebP.")
+        continue
+    cat = get(p, "category", w, required=False) or "all"
+    if cat not in ("all", "plumbing", "electrical", "building", "commercial"):
+        fail(f"{w}: la categoría '{cat}' no es válida.")
+        continue
+    PROJECTS.append({"image": rel, "title": title, "category": cat})
+
+# ================================================================== output folder
+FINAL_OUT, OUT = OUT, PARTIAL
+stop_on_errors()
+shutil.rmtree(OUT, ignore_errors=True)
+os.makedirs(os.path.join(OUT, "services"))
+shutil.copytree(os.path.join(ROOT, "assets"), os.path.join(OUT, "assets"),
+                ignore=shutil.ignore_patterns("uploads", ".DS_Store"))
+for name in ("favicon.ico",):
+    shutil.copy(os.path.join(ROOT, name), os.path.join(OUT, name))
+
+def img_size(name):
+    with Image.open(os.path.join(OUT, "assets", "img", name)) as im:
+        return im.size
+
+def upload_out(rel, suffix=""):
+    """Published path of a processed upload: photos become .jpg, PNG/WebP keep their format."""
+    base, ext = os.path.splitext(rel)
+    ext = ext.lower()
+    return base + suffix + (ext if ext in (".png", ".webp") else ".jpg")
+
+def process_uploads():
+    """Client photos: fix phone rotation, cap at 2000px, add an 800px variant for phones."""
+    src_dir = os.path.join(ROOT, UPLOADS)
+    if not os.path.isdir(src_dir):
+        return
+    os.makedirs(os.path.join(OUT, UPLOADS), exist_ok=True)
+    for name in sorted(os.listdir(src_dir)):
+        src = os.path.join(src_dir, name)
+        if name.startswith(".") or not os.path.isfile(src):
+            continue
+        rel = UPLOADS + "/" + name
+        try:
+            with Image.open(src) as im:
+                im = ImageOps.exif_transpose(im)
+                fmt = {".png": "PNG", ".webp": "WEBP"}.get(os.path.splitext(name)[1].lower(), "JPEG")
+                im = im.convert("RGBA" if fmt != "JPEG" and im.mode in ("RGBA", "LA", "P") else "RGB")
+                for suffix, cap in (("", 2000), ("-800", 800)):
+                    out = im.copy()
+                    out.thumbnail((cap, cap), Image.LANCZOS)
+                    opts = {"quality": 82, "optimize": True, "progressive": True} if fmt == "JPEG" else \
+                           {"quality": 82} if fmt == "WEBP" else {"optimize": True}
+                    out.save(os.path.join(OUT, upload_out(rel, suffix)), fmt, **opts)
+        except Exception as err:  # unreadable file: publish it untouched rather than break the site
+            print(f"WARNING: could not process upload {name}: {err}", file=sys.stderr)
+            shutil.copy(src, os.path.join(OUT, rel))
+
+process_uploads()
+
+# ================================================================== layout
+NAV = [("plumbing.html", "Plumbing"), ("electrical.html", "Electrical"), ("building.html", "Building &amp; Remodeling"),
+       ("commercial.html", "Commercial"), ("index.html#about", "About")]
+
 def jsonld():
-    def office(name, street, city, zipc, phone, area):
-        d = {"@type": "HomeAndConstructionBusiness", "name": name, "telephone": phone, "email": EMAIL,
-             "address": {"@type": "PostalAddress", "streetAddress": street, "addressLocality": city,
-                         "addressRegion": "FL", "postalCode": zipc, "addressCountry": "US"},
-             "areaServed": area}
+    def office(o):
+        digits = re.sub(r"\D", "", o["tel"])[-10:]
+        d = {"@type": "HomeAndConstructionBusiness", "name": f"{SITE_NAME} — {o['region']}",
+             "telephone": f"+1-{digits[:3]}-{digits[3:6]}-{digits[6:]}", "email": EMAIL,
+             "address": {"@type": "PostalAddress", "streetAddress": o["street"], "addressLocality": o["city"],
+                         "addressRegion": o["state"], "postalCode": o["zip"], "addressCountry": "US"},
+             "areaServed": f"Florida {o['region']}"}
         if SITE_URL:
             d["url"] = SITE_URL + "/"
             d["image"] = SITE_URL + "/assets/img/logo.png"
         return d
     data = {
         "@context": "https://schema.org", "@type": "Organization", "name": SITE_NAME,
-        "legalName": "CIA Solutions, Corp.", "email": EMAIL,
-        "description": "Licensed & insured plumbing, electrical, remodeling, building inspection and trade work in Florida. Licenses CBC1264899, EC13003241, CFC1431064.",
-        "department": [
-            office("U.S. Construction & Plumbing Authority — Treasure Coast", "4166 SW Endicott St.", "Port St. Lucie", "34953", "+1-772-289-2344", "Florida Treasure Coast"),
-            office("U.S. Construction & Plumbing Authority — Gold Coast", "20423 State Rd. 7, Suite F6-245", "Boca Raton", "33498", "+1-954-991-9500", "Florida Gold Coast"),
-        ],
+        "legalName": LEGAL_NAME, "email": EMAIL,
+        "description": "Licensed & insured plumbing, electrical, remodeling, building inspection and trade work in Florida. Licenses "
+                       + ", ".join(l["number"] for l in LICENSES) + ".",
+        "department": [office(o) for o in OFFICES],
     }
     if SITE_URL:
         data["url"] = SITE_URL + "/"
@@ -286,7 +410,7 @@ def head(b, title, desc, path="", schema=False):
     t, d = attr(title), attr(desc)
     canon = ""
     if SITE_URL:
-        url = SITE_URL + "/" + ("" if path in ("", "index.html") else path)
+        url = public_url(path)
         canon = f"""
   <link rel="canonical" href="{url}">
   <meta property="og:url" content="{url}">
@@ -319,17 +443,33 @@ def head(b, title, desc, path="", schema=False):
   <a class="skip-link" href="#main">Skip to main content</a>
 """
 
+def announcement(b):
+    if not ANNOUNCE:
+        return ""
+    link = ANNOUNCE["link"]
+    if link and not re.match(r"^(https?:|mailto:|tel:|/|#)", link):
+        link = b + link
+    a = f' <a href="{e(link)}">{e(ANNOUNCE["link_text"])} <i class="fa-solid fa-arrow-right"></i></a>' if link else ""
+    return f"""
+  <div class="announce" role="region" aria-label="Announcement">
+    <div class="announce__inner"><span>{rich(ANNOUNCE["text"])}</span>{a}</div>
+  </div>
+"""
+
 def header(b, active):
     act = ' class="is-active" aria-current="page"'
     links = "\n".join(f'        <a href="{b}{h}"{act if h == active else ""}>{t}</a>' for h, t in NAV)
     mlinks = "\n".join(f'    <a class="m-link" href="{b}{h}">{t} <i class="fa-solid fa-arrow-right"></i></a>' for h, t in NAV)
-    return f"""
+    dot = '<span class="dot"></span> '
+    phones = "\n".join(
+        f'        <a href="{o["tel"]}">{dot if i == 0 else ""}{e(o["region"])} <b>{e(o["phone"])}</b></a>'
+        for i, o in enumerate(OFFICES))
+    return f"""{announcement(b)}
   <div class="utility" role="complementary" aria-label="Contact information">
     <div class="utility__inner">
       <div class="utility__group">
-        <a href="{TC[1]}"><span class="dot"></span> Treasure Coast <b>{TC[0]}</b></a>
-        <a href="{GC[1]}">Gold Coast <b>{GC[0]}</b></a>
-        <a class="hide-sm" href="mailto:{EMAIL}"><i class="fa-regular fa-envelope"></i> {EMAIL}</a>
+{phones}
+        <a class="hide-sm" href="mailto:{e(EMAIL)}"><i class="fa-regular fa-envelope"></i> {e(EMAIL)}</a>
       </div>
       <div class="utility__lic">Licensed &amp; Insured &middot; {LIC}</div>
     </div>
@@ -345,7 +485,7 @@ def header(b, active):
 {links}
       </nav>
       <div class="header__actions">
-        <a class="header__phone" href="{TC[1]}"><small>Call now</small><b>{TC[0]}</b></a>
+        <a class="header__phone" href="{PRIMARY["tel"]}"><small>Call now</small><b>{e(PRIMARY["phone"])}</b></a>
         <a href="{b}schedule.html" class="btn btn--red btn--sm">Free Evaluation <i class="fa-solid fa-arrow-right"></i></a>
         <button class="hamburger" id="hamburger" aria-label="Open menu" aria-expanded="false" aria-controls="mobileMenu"><span></span><span></span><span></span></button>
       </div>
@@ -355,12 +495,16 @@ def header(b, active):
   <nav class="mobile-menu" id="mobileMenu" aria-label="Mobile">
 {mlinks}
     <a href="{b}schedule.html" class="btn btn--red btn--block m-cta">Schedule a Free Evaluation <i class="fa-solid fa-arrow-right"></i></a>
-    <a href="{TC[1]}" class="btn btn--glass btn--block"><i class="fa-solid fa-phone"></i> {TC[0]}</a>
+    <a href="{PRIMARY["tel"]}" class="btn btn--glass btn--block"><i class="fa-solid fa-phone"></i> {e(PRIMARY["phone"])}</a>
   </nav>
 """
 
-def final_cta(b, title="Ready to evaluate your plumbing, electrical <em>or building concerns?</em>",
-              text="Get fast, precise, and correct evaluations from Florida&rsquo;s trusted experts."):
+def final_cta(b, title=None, text=None):
+    title = hd(CTA_HEADING) if title is None else title
+    text = e(CTA_LEAD) if text is None else text
+    cards = "\n".join(
+        f'        <a class="contact-card" href="{o["tel"]}"><i class="ic fa-solid fa-phone"></i><div><small>{e(o["region"])}</small><strong>{e(o["phone"])}</strong></div><i class="go fa-solid fa-arrow-right"></i></a>'
+        for o in OFFICES)
     return f"""
   <section class="final">
     <div class="container final__inner">
@@ -371,22 +515,32 @@ def final_cta(b, title="Ready to evaluate your plumbing, electrical <em>or build
         <div class="hero__actions"><a href="{b}schedule.html" class="btn btn--red">Schedule a Free Evaluation <i class="fa-solid fa-arrow-right"></i></a></div>
       </div>
       <div class="contact-cards reveal reveal-d1">
-        <a class="contact-card" href="{TC[1]}"><i class="ic fa-solid fa-phone"></i><div><small>Treasure Coast</small><strong>{TC[0]}</strong></div><i class="go fa-solid fa-arrow-right"></i></a>
-        <a class="contact-card" href="{GC[1]}"><i class="ic fa-solid fa-phone"></i><div><small>Gold Coast</small><strong>{GC[0]}</strong></div><i class="go fa-solid fa-arrow-right"></i></a>
-        <a class="contact-card" href="mailto:{EMAIL}"><i class="ic fa-solid fa-envelope"></i><div><small>Email</small><strong>{EMAIL.replace("@", "@<wbr>")}</strong></div><i class="go fa-solid fa-arrow-right"></i></a>
+{cards}
+        <a class="contact-card" href="mailto:{e(EMAIL)}"><i class="ic fa-solid fa-envelope"></i><div><small>Email</small><strong>{e(EMAIL).replace("@", "@<wbr>")}</strong></div><i class="go fa-solid fa-arrow-right"></i></a>
       </div>
     </div>
   </section>
 """
 
 def footer(b):
+    cols = []
+    for i, o in enumerate(OFFICES):
+        mail = f'\n            <li><a href="mailto:{e(EMAIL)}">{e(EMAIL)}</a></li>' if i == len(OFFICES) - 1 else ""
+        cols.append(f"""        <div>
+          <h2 class="footer__title">{e(o["region"])}</h2>
+          <ul>
+            <li>{e(o["street"])}<br>{e(o["city"])}, {e(o["state"])} {e(o["zip"])}</li>
+            <li><a href="{o["tel"]}">{e(o["phone"])}</a></li>{mail}
+          </ul>
+        </div>""")
+    office_cols = "\n".join(cols)
     return f"""
   <footer class="footer">
     <div class="container">
       <div class="footer__top">
         <div class="footer__brand">
           <img src="{b}assets/img/logo-192.png" alt="U.S. Construction &amp; Plumbing Authority" width="96" height="87" loading="lazy">
-          <p>U.S. Construction &amp; Plumbing Authority and PSL Plumbing &amp; Drains are divisions of CIA Solutions, Corp. JV Triphase Development Corp. Licensed &amp; insured.</p>
+          <p>{e(ABOUT_LINE)}</p>
           <a href="{b}schedule.html" class="btn btn--red btn--sm">Free Evaluation <i class="fa-solid fa-arrow-right"></i></a>
         </div>
         <div>
@@ -399,32 +553,18 @@ def footer(b):
             <li><a href="{b}schedule.html">Schedule an Evaluation</a></li>
           </ul>
         </div>
-        <div>
-          <h2 class="footer__title">Treasure Coast</h2>
-          <ul>
-            <li>4166 SW Endicott St.<br>Port St. Lucie, FL 34953</li>
-            <li><a href="{TC[1]}">{TC[0]}</a></li>
-          </ul>
-        </div>
-        <div>
-          <h2 class="footer__title">Gold Coast</h2>
-          <ul>
-            <li>20423 State Rd. 7, Suite F6-245<br>Boca Raton, FL 33498</li>
-            <li><a href="{GC[1]}">{GC[0]}</a></li>
-            <li><a href="mailto:{EMAIL}">{EMAIL}</a></li>
-          </ul>
-        </div>
+{office_cols}
       </div>
       <div class="footer__big" aria-hidden="true">U.S. Construction Authority</div>
       <div class="footer__bottom">
-        <span>&copy; <span id="year">2026</span> CIA Solutions, Corp. All rights reserved.</span>
+        <span>&copy; <span id="year">2026</span> {e(LEGAL_NAME)} All rights reserved.</span>
         <span>Licenses: {LIC}</span>
       </div>
     </div>
   </footer>
 
   <nav class="callbar" aria-label="Quick contact">
-    <a href="{TC[1]}"><i class="fa-solid fa-phone"></i> Call Now</a>
+    <a href="{PRIMARY["tel"]}"><i class="fa-solid fa-phone"></i> Call Now</a>
     <a href="{b}schedule.html"><i class="fa-regular fa-calendar-check"></i> Free Estimate</a>
   </nav>
 
@@ -450,6 +590,8 @@ def _unreveal(m):
         return f' class="{" ".join(classes)}"' if classes else ""
     return re.sub(r' class="([^"]*)"', clean, m.group(1))
 
+PAGES = []
+
 def write(path, html):
     html = HERO_RE.sub(_unreveal, html, count=1)
     html = re.sub(r'<i class="([^"]*\bfa-[^"]*)">', r'<i class="\1" aria-hidden="true">', html)
@@ -457,8 +599,6 @@ def write(path, html):
     with open(os.path.join(OUT, path), "w", encoding="utf-8") as f:
         f.write(html)
     PAGES.append(path)
-
-PAGES = []
 
 def crumbs(items):
     """items: list of (href or None, label); the last one is the current page."""
@@ -470,10 +610,15 @@ def crumbs(items):
             lis.append(f'<li><a href="{h}">{t}</a></li>')
     return f'<nav class="crumbs" aria-label="Breadcrumb"><ol>{"".join(lis)}</ol></nav>'
 
+def kicker(num, label, light=False):
+    return f'<span class="kicker{" kicker--light" if light else ""}">{num:02d} <span>&mdash; {e(label)}</span></span>'
+
 def img_tag(src_name, b, alt, lazy=True, extra=""):
-    small = src_name.replace(".jpg", "-800.jpg")
-    if src_name.endswith(".jpg") and os.path.exists(os.path.join(OUT, "assets", "img", small)):
-        extra += f' srcset="{b}assets/img/{small} 800w, {b}assets/img/{src_name} {img_size(src_name)[0]}w" sizes="(max-width: 720px) 100vw, 800px"'
+    for ext in (".jpg", ".png"):
+        small = src_name[:-len(ext)] + "-800" + ext if src_name.endswith(ext) else None
+        if small and os.path.exists(os.path.join(OUT, "assets", "img", small)):
+            extra += f' srcset="{b}assets/img/{small} 800w, {b}assets/img/{src_name} {img_size(src_name)[0]}w" sizes="(max-width: 720px) 100vw, 800px"'
+            break
     size = img_size(src_name)
     wh = f' width="{size[0]}" height="{size[1]}"' if size else ""
     lz = ' loading="lazy"' if lazy else ""
@@ -521,122 +666,53 @@ def dg_card(key, tall=False):
         </article>"""
 
 def svc_card(division, s, b=""):
-    slug, icon, title, short = s[0], s[1], s[2], s[3]
+    slug, icon_cls, title, short = s[0], s[1], s[2], s[3]
+    n = len(s[5])
     return f"""
         <a class="svc-card reveal" href="{b}services/{division}-{slug}.html">
-          <span class="svc-card__icon"><i class="fa-solid {icon}"></i></span>
+          <span class="svc-card__icon"><i class="fa-solid {icon_cls}"></i></span>
           <h3>{title}</h3>
           <p>{short}</p>
-          <span class="svc-card__foot">{len(s[5])} service options <i class="fa-solid fa-arrow-right"></i></span>
+          <span class="svc-card__foot">{n} service option{"" if n == 1 else "s"} <i class="fa-solid fa-arrow-right"></i></span>
         </a>"""
 
-# ------------------------------------------------------------------ blueprint
-HOTSPOTS = [
-    (128, 252, "Plumbing", "Bathroom &amp; shower leaks", "Tub, shower pan and fixture connections.", "services/plumbing-shower-tub.html"),
-    (96, 326, "Plumbing &middot; Infrared", "Hidden leaks in walls", "Located with infrared thermography.", "services/plumbing-leak-detection.html"),
-    (166, 342, "Plumbing", "Kitchen plumbing", "Faucets, disposals and dishwashers.", "services/plumbing-faucets-fixtures.html"),
-    (422, 336, "Plumbing", "Water heater", "Repair or replacement of leaking and failing tanks.", "services/plumbing-water-heater.html"),
-    (333, 318, "Electrical &middot; Infrared", "Breaker panel", "Double taps, oxidized breakers, bonding and more.", "services/electrical-breaker-panel.html"),
-    (365, 190, "Electrical", "Ceiling fans &amp; lighting", "Repair, replace or install new fixtures.", "services/electrical-ceiling-fans.html"),
-    (455, 258, "Electrical", "Receptacles &amp; switches", "Warm, dead or sparking outlets.", "services/electrical-receptacles-switches.html"),
-    (340, 408, "Plumbing", "Sewer &amp; drain lines", "Clogs and breaks in underground lines.", "services/plumbing-sewer-line.html"),
-    (530, 398, "Plumbing", "Main shutoff valve", "Replacement from &frac34;&Prime; to 2&Prime;.", "services/plumbing-main-shutoff-valve.html"),
-]
-
-def blueprint():
-    spots = "\n".join(
-        f'        <a class="hotspot" href="{h}" aria-label="{attr(t)}: {attr(x)}" data-cat="{c}" data-title="{t}" data-text="{x}">'
-        f'<circle class="hit" cx="{cx}" cy="{cy}" r="16"/><circle class="ring" cx="{cx}" cy="{cy}" r="9"/><circle class="core" cx="{cx}" cy="{cy}" r="6"/></a>'
-        for cx, cy, c, t, x, h in HOTSPOTS)
-    hatch = "".join(f'<line x1="{x}" y1="388" x2="{x-14}" y2="430" class="bp-thin"/>' for x in range(14, 600, 18))
+def gallery_section(category, num, b=""):
+    """Project photos (all, or those of one division). Empty string when there are none."""
+    items = [p for p in PROJECTS if category == "all" or p["category"] in (category, "all")]
+    if not items:
+        return ""
+    figs = []
+    for i, p in enumerate(items):
+        out_src, small = upload_out(p["image"]), upload_out(p["image"], "-800")
+        if not os.path.exists(os.path.join(OUT, out_src)):  # could not be processed: use the file as uploaded
+            out_src = small = p["image"]
+        try:
+            with Image.open(os.path.join(OUT, out_src)) as im:
+                wh = f' width="{im.size[0]}" height="{im.size[1]}"'
+                full_w = im.size[0]
+        except Exception:
+            wh, full_w = "", 2000
+        srcset = f' srcset="{b}{quote(small)} 800w, {b}{quote(out_src)} {full_w}w" sizes="(max-width: 720px) 100vw, 400px"' \
+            if small != out_src and os.path.exists(os.path.join(OUT, small)) else ""
+        cap = e(p["title"])
+        figs.append(f"""
+        <figure class="gallery__item reveal{' reveal-d1' if i % 3 == 1 else ' reveal-d2' if i % 3 == 2 else ''}" data-lightbox data-title="{cap}" data-text="" role="button" tabindex="0" aria-label="Enlarge photo: {cap}">
+          <div class="dg-frame"><img src="{b}{quote(out_src)}" alt="{cap}"{wh} loading="lazy"{srcset}></div>
+          <figcaption>{cap}</figcaption>
+        </figure>""")
+    intro = f'<p class="reveal reveal-d1">{e(GALLERY_INTRO)}</p>' if GALLERY_INTRO else ""
     return f"""
-      <div class="blueprint reveal">
-        <div class="blueprint__bar"><span>Interactive guide &middot; Cross-section</span><span class="live">Interactive</span></div>
-        <svg viewBox="0 0 600 440" role="group" aria-label="Home cross-section: select a point to see the related service">
-          <g aria-hidden="true">
-          <defs>
-            <linearGradient id="scanGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stop-color="#ff5a70" stop-opacity="0"/><stop offset=".5" stop-color="#ff5a70" stop-opacity=".22"/><stop offset="1" stop-color="#ff5a70" stop-opacity="0"/>
-            </linearGradient>
-            <radialGradient id="heat" cx=".5" cy=".5" r=".5">
-              <stop offset="0" stop-color="#fff3a0" stop-opacity=".95"/><stop offset=".35" stop-color="#ff9a3c" stop-opacity=".7"/><stop offset=".7" stop-color="#c8102e" stop-opacity=".35"/><stop offset="1" stop-color="#4b0c7a" stop-opacity="0"/>
-            </radialGradient>
-            <clipPath id="houseClip"><path d="M50,170 L270,70 L490,170 L490,440 L50,440 Z"/></clipPath>
-          </defs>
-
-          <!-- ground -->
-          <g>{hatch}</g>
-          <line x1="0" y1="380" x2="600" y2="380" class="bp-line"/>
-          <text x="8" y="374" class="bp-text">Grade</text>
-
-          <!-- utility pole + service drop -->
-          <line x1="572" y1="380" x2="572" y2="150" class="bp-line"/>
-          <line x1="560" y1="160" x2="584" y2="160" class="bp-line"/>
-          <path d="M572,162 Q530,220 478,292" class="bp-wire draw"/>
-          <rect x="470" y="288" width="14" height="20" rx="2" class="bp-fill"/>
-          <text x="500" y="210" class="bp-text">Service</text>
-
-          <!-- house shell -->
-          <path d="M50,170 L270,70 L490,170" class="bp-line draw"/>
-          <path d="M70,170 V380 M470,170 V380 M70,170 H470 M70,275 H470 M260,170 V275 M300,275 V380" class="bp-line draw"/>
-          <text x="80" y="186" class="bp-text">2nd floor</text>
-          <text x="80" y="291" class="bp-text">1st floor</text>
-
-          <!-- bathroom -->
-          <rect x="84" y="240" width="92" height="26" rx="10" class="bp-fill"/>
-          <path d="M200,222 h24 v18 h-24 z M198,242 h30 q0,20 -15,22 q-15,-2 -15,-22 z" class="bp-fill"/>
-          <!-- bedroom: fan + receptacle -->
-          <path d="M365,170 V182 M335,184 H395" class="bp-line"/>
-          <ellipse cx="365" cy="186" rx="8" ry="4" class="bp-fill"/>
-          <rect x="449" y="250" width="12" height="16" rx="2" class="bp-fill"/>
-          <!-- kitchen -->
-          <rect x="88" y="290" width="120" height="20" rx="2" class="bp-fill"/>
-          <path d="M86,346 H270 V380 H86 Z" class="bp-fill"/>
-          <path d="M150,346 v8 h32 v-8" class="bp-line"/>
-          <path d="M166,346 v-16 q0,-6 8,-6" class="bp-line"/>
-          <rect x="214" y="350" width="44" height="30" rx="2" class="bp-fill"/>
-          <!-- utility: heater + panel + washer -->
-          <rect x="400" y="300" width="44" height="78" rx="8" class="bp-fill"/>
-          <rect x="320" y="298" width="26" height="40" rx="2" class="bp-fill"/>
-          <path d="M325,306 h16 M325,312 h16 M325,318 h16 M325,324 h16 M325,330 h16" class="bp-thin"/>
-          <rect x="352" y="344" width="36" height="36" rx="4" class="bp-fill"/>
-          <circle cx="370" cy="362" r="10" class="bp-thin"/>
-
-          <!-- drain / vent stack + sewer -->
-          <path d="M240,62 V404 H600" class="bp-drain draw d2"/>
-          <path d="M150,266 V272 H240 M166,354 V368 H240 M214,264 V270" class="bp-drain draw d2"/>
-          <text x="248" y="420" class="bp-text">Drain / sewer</text>
-
-          <!-- cold supply -->
-          <path d="M600,396 H452 V292 H428 V300 M452,368 H96 V236 M96,262 H212 V240 M166,368 V330" class="bp-cold draw d3"/>
-          <circle cx="530" cy="396" r="5" class="bp-fill"/>
-          <text x="505" y="416" class="bp-text">Supply</text>
-          <!-- hot supply -->
-          <path d="M438,300 V284 H108 V236 M176,284 V330" class="bp-hot draw d3"/>
-
-          <!-- electrical -->
-          <path d="M478,300 H346 M333,298 V172 H365 M340,298 V282 H455 V266 M320,318 H148 V310" class="bp-wire draw d4"/>
-
-          <!-- thermal anomalies -->
-          <circle cx="96" cy="326" r="26" fill="url(#heat)"><animate attributeName="r" values="22;30;22" dur="3s" repeatCount="2"/></circle>
-          <circle cx="333" cy="318" r="22" fill="url(#heat)" opacity=".85"><animate attributeName="r" values="18;26;18" dur="3.4s" repeatCount="2"/></circle>
-
-          <!-- IR scan line -->
-          <g clip-path="url(#houseClip)"><rect class="scanline" x="50" y="60" width="440" height="40" fill="url(#scanGrad)"/></g>
-
-          </g>
-          <!-- hotspots -->
-{spots}
-        </svg>
-        <div class="bp-tip" aria-hidden="true"></div>
-        <div class="blueprint__legend">
-          <span><i style="background:var(--blue)"></i>Cold water</span>
-          <span><i style="background:#ff6b6b"></i>Hot water</span>
-          <span><i style="background:#9fb0c8"></i>Drain / sewer</span>
-          <span><i style="background:var(--amber)"></i>Electrical</span>
-          <span class="hint"><i class="fa-solid fa-hand-pointer"></i> Select a point to explore</span>
-        </div>
-      </div>"""
+  <section class="section section--white" id="projects">
+    <div class="container">
+      <div class="head">
+        <div class="reveal">{kicker(num, "Recent projects")}<h2 class="h2">{hd(GALLERY_HEADING)}</h2></div>
+        {intro}
+      </div>
+      <div class="gallery">{"".join(figs)}
+      </div>
+    </div>
+  </section>
+"""
 
 THERMAL_FILTER = """
   <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
@@ -650,21 +726,26 @@ THERMAL_FILTER = """
     </filter>
   </svg>"""
 
-# ------------------------------------------------------------------ hero visual
-HERO_SPOTS = [
-    (80, 22, "Plumbing", "Bathroom &amp; shower leaks", "services/plumbing-shower-tub.html"),
-    (37, 46, "Plumbing", "Kitchen plumbing", "services/plumbing-faucets-fixtures.html"),
-    (61, 66, "Plumbing", "Water heater", "services/plumbing-water-heater.html"),
-    (12, 64, "Plumbing", "Main shutoff valve", "services/plumbing-main-shutoff-valve.html"),
-    (91, 43, "Infrared", "Hidden leak detection", "services/plumbing-leak-detection.html"),
-    (40, 84, "Plumbing", "Sewer &amp; drain lines", "services/plumbing-sewer-line.html"),
+# ---------------------------------------------------------------- hero visual (illustrated cross-section)
+HERO_SPOTS = [  # x %, y %, category, label, linked service (falls back to the division page if hidden/removed)
+    (80, 22, "Plumbing", "Bathroom &amp; shower leaks", "plumbing", "shower-tub"),
+    (37, 46, "Plumbing", "Kitchen plumbing", "plumbing", "faucets-fixtures"),
+    (61, 66, "Plumbing", "Water heater", "plumbing", "water-heater"),
+    (12, 64, "Plumbing", "Main shutoff valve", "plumbing", "main-shutoff-valve"),
+    (91, 43, "Infrared", "Hidden leak detection", "plumbing", "leak-detection"),
+    (40, 84, "Plumbing", "Sewer &amp; drain lines", "plumbing", "sewer-line"),
 ]
+
+def service_href(division, slug, b=""):
+    if slug in SERVICE_SLUGS.get(division, ()):
+        return f"{b}services/{division}-{slug}.html"
+    return f"{b}{division}.html"
 
 def hero_visual():
     spots = "".join(
-        f'<a class="hv-spot{" hv-spot--l" if x < 30 else " hv-spot--r" if x > 70 else ""}" href="{h}" style="left:{x}%;top:{y}%" aria-label="{attr(t)}">'
+        f'<a class="hv-spot{" hv-spot--l" if x < 30 else " hv-spot--r" if x > 70 else ""}" href="{service_href(div, slug)}" style="left:{x}%;top:{y}%" aria-label="{attr(t)}">'
         f'<span class="hv-dot" aria-hidden="true"></span><span class="hv-tip" aria-hidden="true"><small>{c}</small>{t}</span></a>'
-        for x, y, c, t, h in HERO_SPOTS)
+        for x, y, c, t, div, slug in HERO_SPOTS)
     return f"""
       <figure class="hero-visual">
         <div class="hero-visual__frame">
@@ -674,9 +755,79 @@ def hero_visual():
         <figcaption><span><i class="fa-solid fa-location-dot"></i> Select a point to see the related service</span><a href="plumbing.html">All services <i class="fa-solid fa-arrow-right"></i></a></figcaption>
       </figure>"""
 
-# ------------------------------------------------------------------ HOME
-def p_services_list(items):
-    return "".join(f"<li>{s[2]}</li>" for s in items)
+# ================================================================== HOME
+H = "content/home.yml"
+hero = section(HOME, "hero", H)
+stats = get(HOME, "stats", H, list)
+divs = section(HOME, "divisions", H)
+thermal = section(HOME, "thermal", H)
+why = section(HOME, "why", H)
+steps = section(HOME, "steps", H)
+diag = section(HOME, "diagnostics", H)
+com = section(HOME, "commercial", H)
+about = section(HOME, "about", H)
+areas = section(HOME, "areas", H)
+
+def items(d, key, where):
+    out = []
+    for i, it in enumerate(get(d, key, where, list), 1):
+        w = f"{where} → {key} {i}"
+        out.append((get(it, "title", w), get(it, "text", w)))
+    return out
+
+DELAYS = ["", " reveal-d1", " reveal-d2", " reveal-d3"]
+stat_html = "\n".join(
+    f'        <div class="stat reveal{DELAYS[i % 4]}"><div class="stat__num">{e(get(s, "number", H + " → stats"))}{"<sup>+</sup>" if get(s, "plus", H, bool) else ""}</div><p>{e(get(s, "label", H + " → stats"))}</p></div>'
+    for i, s in enumerate(stats))
+
+def division_card(key, href, img, alt, icon_cls, tag_small, tag_strong, delay, extra_img=""):
+    d = get(divs, key, H + " → divisions", dict)
+    w = f"{H} → divisions → {key}"
+    bullets = "".join(f"<li>{e(x)}</li>" for x in texts(d, "bullets", w))
+    return f"""
+        <a href="{href}" class="division reveal{delay}">
+          <div class="division__media"><img src="assets/img/{img}" alt="{alt}" loading="lazy"{extra_img}>
+            <span class="division__icon"><i class="fa-solid {icon_cls}"></i></span>
+            <div class="division__tag"><small>{tag_small}</small><strong>{tag_strong}</strong></div></div>
+          <div class="division__body">
+            <h3>{e(get(d, "title", w))}</h3>
+            <p>{e(get(d, "text", w))}</p>
+            <ul class="division__list">{bullets}</ul>
+            <span class="division__enter">Enter Here <i class="fa-solid fa-arrow-right"></i></span>
+          </div>
+        </a>"""
+
+THERMAL_ICONS = ["fa-droplet", "fa-bolt", "fa-crosshairs", "fa-temperature-half"]
+thermal_html = "\n".join(
+    f'          <li><i class="fa-solid {THERMAL_ICONS[i % len(THERMAL_ICONS)]}"></i><div><strong>{e(t)}</strong><span>{e(x)}</span></div></li>'
+    for i, (t, x) in enumerate(items(thermal, "points", H + " → thermal")))
+why_html = "\n".join(
+    f'        <li class="why__item reveal"><span class="why__num">{i:02d}</span><div><h3>{e(t)}</h3><p>{e(x)}</p></div></li>'
+    for i, (t, x) in enumerate(items(why, "items", H + " → why"), 1))
+steps_html = "\n".join(
+    f'        <div class="process__step reveal{DELAYS[(i - 1) % 3]}"><div class="process__dot">{i}</div><h3>{e(t)}</h3><p>{e(x)}</p></div>'
+    for i, (t, x) in enumerate(items(steps, "items", H + " → steps"), 1))
+BENEFIT_ICONS = ["fa-person-digging", "fa-recycle", "fa-calendar-check", "fa-chart-line", "fa-clipboard-check", "fa-shield-halved"]
+benefits_html = "\n".join(
+    f'        <div class="benefit"><i class="fa-solid {BENEFIT_ICONS[i % len(BENEFIT_ICONS)]}"></i><strong>{e(t)}</strong><span>{e(x)}</span></div>'
+    for i, (t, x) in enumerate(items(com, "benefits", H + " → commercial")))
+about_paras = "\n".join(f"        <p>{rich(p)}</p>" for p in texts(about, "paragraphs", H + " → about"))
+licenses_html = "\n".join(
+    f'          <div class="license"><i class="fa-solid {LICENSE_ICONS[l["type"]]}"></i><small>{e(l["label"])}</small><strong>{e(l["number"])}</strong></div>'
+    for l in LICENSES)
+
+def map_src(o):
+    q = f'{o["street"]}, {o["city"]}, {o["state"]} {o["zip"]}'
+    return "https://maps.google.com/maps?q=" + quote_plus(q) + "&amp;z=13&amp;output=embed"
+
+locations_html = "\n".join(f"""        <div class="location reveal{DELAYS[i % 2]}">
+          <div class="location__map"><iframe title="Map — {attr(o["city"])} office" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="{map_src(o)}"></iframe></div>
+          <div class="location__body"><div><small>{e(o["region"])}</small><h3>{e(o["city"])}</h3><p>{e(o["street"])}, {e(o["city"])}, {e(o["state"])} {e(o["zip"])}</p></div><a class="btn btn--dark btn--sm" href="{o["tel"]}"><i class="fa-solid fa-phone"></i> {e(o["phone"])}</a></div>
+        </div>""" for i, o in enumerate(OFFICES))
+
+home_gallery = gallery_section("all", 8)
+areas_num = 9 if home_gallery else 8
+trades = "".join(f"<span>{e(t)}</span>" for t in texts(hero, "trades", H + " → hero"))
 
 home = f"""
   <main>
@@ -685,23 +836,20 @@ home = f"""
     <div class="container">
       <div class="hero__grid">
         <div>
-          <span class="pill reveal"><b>Free</b> On-site evaluations &amp; estimates</span>
-          <h1 class="reveal reveal-d1">Florida&rsquo;s trusted, <em>licensed &amp; insured</em> experts.</h1>
-          <div class="hero__trades reveal reveal-d2"><span>Plumbing</span><span>Electrical</span><span>Remodeling</span><span>Building Inspections</span><span>Trade Work</span></div>
-          <p class="hero__sub reveal reveal-d2">Our quality craftsmanship enhances the safety, elegance and functionality of your home or property.</p>
+          <span class="pill reveal"><b>{e(get(hero, "badge", H + " → hero"))}</b> {e(get(hero, "badge_text", H + " → hero"))}</span>
+          <h1 class="reveal reveal-d1">{hd(get(hero, "heading", H + " → hero"))}</h1>
+          <div class="hero__trades reveal reveal-d2">{trades}</div>
+          <p class="hero__sub reveal reveal-d2">{rich(get(hero, "subtitle", H + " → hero"))}</p>
           <div class="hero__actions reveal reveal-d3">
             <a href="schedule.html" class="btn btn--red">Schedule a Free Evaluation <i class="fa-solid fa-arrow-right"></i></a>
-            <a href="{TC[1]}" class="btn btn--glass"><i class="fa-solid fa-phone"></i> {TC[0]}</a>
+            <a href="{PRIMARY["tel"]}" class="btn btn--glass"><i class="fa-solid fa-phone"></i> {e(PRIMARY["phone"])}</a>
           </div>
         </div>
 {hero_visual()}
       </div>
 
       <div class="stats">
-        <div class="stat reveal"><div class="stat__num">35<sup>+</sup></div><p>Years of experience serving Florida homes &amp; properties</p></div>
-        <div class="stat reveal reveal-d1"><div class="stat__num">50<sup>+</sup></div><p>Years of combined experience across our team</p></div>
-        <div class="stat reveal reveal-d2"><div class="stat__num">3</div><p>Contractor licenses &mdash; building, electrical &amp; plumbing</p></div>
-        <div class="stat reveal reveal-d3"><div class="stat__num">$0</div><p>Cost for your on-site evaluation &amp; estimate</p></div>
+{stat_html}
       </div>
     </div>
   </section>
@@ -709,43 +857,10 @@ home = f"""
   <section class="section">
     <div class="container">
       <div class="head">
-        <div class="reveal"><span class="kicker">01 <span>&mdash; Our divisions</span></span><h2 class="h2">Three divisions. <em>One standard.</em></h2></div>
-        <p class="reveal reveal-d1">Licensed plumbers, electricians and builders under one company &mdash; so your project is evaluated, permitted and completed by specialists in every trade.</p>
+        <div class="reveal">{kicker(1, get(divs, "label", H))}<h2 class="h2">{hd(get(divs, "heading", H))}</h2></div>
+        <p class="reveal reveal-d1">{rich(get(divs, "intro", H))}</p>
       </div>
-      <div class="divisions">
-        <a href="plumbing.html" class="division reveal">
-          <div class="division__media"><img src="assets/img/crop-kitchen.jpg" alt="Kitchen plumbing leak points" loading="lazy">
-            <span class="division__icon"><i class="fa-solid fa-faucet-drip"></i></span>
-            <div class="division__tag"><small>PSL Plumbing &amp; Drains</small><strong>Plumbing</strong></div></div>
-          <div class="division__body">
-            <h3>Plumbing Division</h3>
-            <p>Leaks, drains, water heaters, re-piping and sewer lines.</p>
-            <ul class="division__list"><li>Leak detection &amp; repair</li><li>Water heaters</li><li>Drain &amp; sewer lines</li><li>Re-piping</li></ul>
-            <span class="division__enter">Enter Here <i class="fa-solid fa-arrow-right"></i></span>
-          </div>
-        </a>
-        <a href="electrical.html" class="division reveal reveal-d1">
-          <div class="division__media"><img src="assets/img/crop-panel.jpg" alt="Electrical panel fault points" loading="lazy" style="object-position:top">
-            <span class="division__icon"><i class="fa-solid fa-bolt"></i></span>
-            <div class="division__tag"><small>Triphase</small><strong>Electrical</strong></div></div>
-          <div class="division__body">
-            <h3>Electrical Division</h3>
-            <p>Panels, circuits, lighting, fans and generators.</p>
-            <ul class="division__list"><li>Breaker panel corrections</li><li>Circuits &amp; troubleshooting</li><li>Lighting &amp; ceiling fans</li><li>Generators &amp; transfer switches</li></ul>
-            <span class="division__enter">Enter Here <i class="fa-solid fa-arrow-right"></i></span>
-          </div>
-        </a>
-        <a href="building.html" class="division reveal reveal-d2">
-          <div class="division__media"><img src="assets/img/crop-house.jpg" alt="Whole-house cross-section" loading="lazy">
-            <span class="division__icon"><i class="fa-solid fa-helmet-safety"></i></span>
-            <div class="division__tag"><small>U.S. Construction</small><strong>Building &amp; Remodeling</strong></div></div>
-          <div class="division__body">
-            <h3>Building &amp; Remodeling Division</h3>
-            <p>Remodeling, building inspections and trade work.</p>
-            <ul class="division__list"><li>Remodeling</li><li>Building inspections</li><li>Trade work</li><li>Permits &amp; inspections</li></ul>
-            <span class="division__enter">Enter Here <i class="fa-solid fa-arrow-right"></i></span>
-          </div>
-        </a>
+      <div class="divisions">{division_card("plumbing", "plumbing.html", "crop-kitchen.jpg", "Kitchen plumbing leak points", "fa-faucet-drip", "PSL Plumbing &amp; Drains", "Plumbing", "")}{division_card("electrical", "electrical.html", "crop-panel.jpg", "Electrical panel fault points", "fa-bolt", "Triphase", "Electrical", " reveal-d1", ' style="object-position:top"')}{division_card("building", "building.html", "crop-house.jpg", "Whole-house cross-section", "fa-helmet-safety", "U.S. Construction", "Building &amp; Remodeling", " reveal-d2")}
       </div>
     </div>
   </section>
@@ -753,13 +868,11 @@ home = f"""
   <section class="section dark">
     <div class="container thermal">
       <div class="reveal">
-        <span class="kicker kicker--light">02 <span>&mdash; Infrared thermography</span></span>
-        <h2 class="h2">See what the <em>eye can&rsquo;t.</em></h2>
-        <p class="lead" style="margin-top:20px">Our in-house infrared-certified thermography specialists diagnose hidden plumbing leaks and electrical faults &mdash; helping pinpoint what&rsquo;s wrong before anything is opened up.</p>
+        {kicker(2, get(thermal, "label", H), light=True)}
+        <h2 class="h2">{hd(get(thermal, "heading", H))}</h2>
+        <p class="lead" style="margin-top:20px">{rich(get(thermal, "lead", H))}</p>
         <ul class="thermal__list">
-          <li><i class="fa-solid fa-droplet"></i><div><strong>Hidden plumbing leaks</strong><span>Moisture behind walls, floors and ceilings shows up as a temperature difference.</span></div></li>
-          <li><i class="fa-solid fa-bolt"></i><div><strong>Electrical faults</strong><span>Overheating breakers, loose connections and overloaded circuits stand out immediately.</span></div></li>
-          <li><i class="fa-solid fa-crosshairs"></i><div><strong>Precise evaluations</strong><span>Pinpointing the problem means fewer surprises and more accurate estimates.</span></div></li>
+{thermal_html}
         </ul>
         <a href="schedule.html" class="btn btn--white">Book an Infrared Evaluation <i class="fa-solid fa-arrow-right"></i></a>
       </div>
@@ -781,17 +894,13 @@ home = f"""
   <section class="section section--white">
     <div class="container why">
       <div class="why__sticky reveal">
-        <span class="kicker">03 <span>&mdash; Trust &amp; credentials</span></span>
-        <h2 class="h2">Why homeowners, property managers &amp; contractors <em>choose us.</em></h2>
-        <p class="lead">Experience, credentials and transparency on every project &mdash; large or small.</p>
+        {kicker(3, get(why, "label", H))}
+        <h2 class="h2">{hd(get(why, "heading", H))}</h2>
+        <p class="lead">{rich(get(why, "lead", H))}</p>
         <a href="schedule.html" class="btn btn--dark">Schedule a Free Evaluation <i class="fa-solid fa-arrow-right"></i></a>
       </div>
       <ol class="why__list">
-        <li class="why__item reveal"><span class="why__num">01</span><div><h3>Over 35 years of experience</h3><p>Decades of plumbing, electrical and building work across Florida&rsquo;s Treasure Coast and Gold Coast.</p></div></li>
-        <li class="why__item reveal"><span class="why__num">02</span><div><h3>Licensed, insured &amp; code compliant</h3><p>Experienced, competent &amp; detail-oriented licensed &amp; insured code-compliant plumbers, electricians and builders.</p></div></li>
-        <li class="why__item reveal"><span class="why__num">03</span><div><h3>In-house infrared thermography</h3><p>Infrared-certified thermography specialists for diagnosing plumbing leaks or electrical faults.</p></div></li>
-        <li class="why__item reveal"><span class="why__num">04</span><div><h3>Transparent estimates</h3><p>Clear, detailed estimates &mdash; no surprises.</p></div></li>
-        <li class="why__item reveal"><span class="why__num">05</span><div><h3>Efficient permitting &amp; inspections</h3><p>Our operation supports efficient building department permitting &amp; inspections.</p></div></li>
+{why_html}
       </ol>
     </div>
   </section>
@@ -799,13 +908,11 @@ home = f"""
   <section class="section section--white" style="padding-top:0">
     <div class="container">
       <div class="head">
-        <div class="reveal"><span class="kicker">04 <span>&mdash; How it works</span></span><h2 class="h2">Three simple <em>steps.</em></h2></div>
-        <p class="reveal reveal-d1">From your first call to the finished repair, you stay informed and in control of every decision.</p>
+        <div class="reveal">{kicker(4, get(steps, "label", H))}<h2 class="h2">{hd(get(steps, "heading", H))}</h2></div>
+        <p class="reveal reveal-d1">{rich(get(steps, "lead", H))}</p>
       </div>
       <div class="process">
-        <div class="process__step reveal"><div class="process__dot">1</div><h3>Schedule your visit</h3><p>We assess your plumbing or electrical needs.</p></div>
-        <div class="process__step reveal reveal-d1"><div class="process__dot">2</div><h3>Detailed evaluation with options</h3><p>Our licensed contractors will explain your options and you will decide whether to repair or replace any damaged item.</p></div>
-        <div class="process__step reveal reveal-d2"><div class="process__dot">3</div><h3>We repair or replace</h3><p>We repair or replace the damaged equipment.</p></div>
+{steps_html}
       </div>
     </div>
   </section>
@@ -813,18 +920,18 @@ home = f"""
   <section class="section">
     <div class="container">
       <div class="head">
-        <div class="reveal"><span class="kicker">05 <span>&mdash; Visual diagnostics</span></span><h2 class="h2">Know where <em>problems start.</em></h2></div>
+        <div class="reveal">{kicker(5, get(diag, "label", H))}<h2 class="h2">{hd(get(diag, "heading", H))}</h2></div>
         <div class="reveal reveal-d1">
-          <p style="margin-bottom:22px">Our diagrams help you identify the areas where a leak, deterioration, break or electrical fault can occur.</p>
+          <p style="margin-bottom:22px">{rich(get(diag, "lead", H))}</p>
           <div class="tabs" data-tabs role="tablist" aria-label="Diagram category">
             <button type="button" class="is-active" id="tab-plumbing" data-target="panel-plumbing" role="tab" aria-selected="true" aria-controls="panel-plumbing">Plumbing</button>
             <button type="button" id="tab-electrical" data-target="panel-electrical" role="tab" aria-selected="false" aria-controls="panel-electrical" tabindex="-1">Electrical</button>
           </div>
         </div>
       </div>
-      <div class="dg-panel dg-grid is-active" id="panel-plumbing" role="tabpanel" aria-labelledby="tab-plumbing">{"".join(dg_card(k) for k in ["water-heater", "bathtub", "shower", "kitchen", "repiping", "sewer"])}
+      <div class="dg-panel dg-grid is-active" id="panel-plumbing" role="tabpanel" aria-labelledby="tab-plumbing">{"".join(dg_card(k) for k in DIAGRAM_ORDER if DIAGRAMS[k][3] == "plumbing")}
       </div>
-      <div class="dg-panel dg-grid dg-grid--4" id="panel-electrical" role="tabpanel" aria-labelledby="tab-electrical" hidden>{"".join(dg_card(k, True) for k in ["panel", "disconnect", "receptacles", "fixtures"])}
+      <div class="dg-panel dg-grid dg-grid--4" id="panel-electrical" role="tabpanel" aria-labelledby="tab-electrical" hidden>{"".join(dg_card(k, True) for k in DIAGRAM_ORDER if DIAGRAMS[k][3] == "electrical")}
       </div>
     </div>
   </section>
@@ -832,16 +939,13 @@ home = f"""
   <section class="section dark dark--900">
     <div class="container commercial">
       <div class="reveal">
-        <span class="kicker kicker--light">06 <span>&mdash; Commercial clients</span></span>
-        <h2 class="h2">On time. <em>On budget.</em></h2>
-        <p class="lead" style="margin-top:20px">Our meticulous work reduces labor costs, on-site corrections and roughing relocations that cause delays, material waste and unnecessary costs &mdash; keeping schedules flowing uninterrupted.</p>
+        {kicker(6, get(com, "label", H), light=True)}
+        <h2 class="h2">{hd(get(com, "heading", H))}</h2>
+        <p class="lead" style="margin-top:20px">{rich(get(com, "lead", H))}</p>
         <div class="hero__actions"><a href="commercial.html" class="btn btn--white">Commercial Services <i class="fa-solid fa-arrow-right"></i></a></div>
       </div>
       <div class="benefits reveal reveal-d1">
-        <div class="benefit"><i class="fa-solid fa-person-digging"></i><strong>Fewer corrections</strong><span>Reduced on-site corrections and roughing relocations.</span></div>
-        <div class="benefit"><i class="fa-solid fa-recycle"></i><strong>Less waste</strong><span>Less material waste and unnecessary costs.</span></div>
-        <div class="benefit"><i class="fa-solid fa-calendar-check"></i><strong>Schedules on track</strong><span>Work that keeps schedules flowing uninterrupted.</span></div>
-        <div class="benefit"><i class="fa-solid fa-chart-line"></i><strong>Predictable budgets</strong><span>Plan repairs and budget effectively.</span></div>
+{benefits_html}
       </div>
     </div>
   </section>
@@ -849,40 +953,30 @@ home = f"""
   <section class="section" id="about">
     <div class="container about">
       <div class="about__text reveal">
-        <span class="kicker">07 <span>&mdash; About us</span></span>
-        <h2 class="h2">Your partner in plumbing, electrical <em>or building repairs.</em></h2>
-        <p>U.S. Construction &amp; Plumbing Authority and PSL Plumbing &amp; Drains are dedicated to protecting Florida homes through advanced diagnostics, engineering expertise, and reliable repair services.</p>
-        <p>Our team, with over 50 years of combined experience, will provide the quality craftsmanship you expect and deserve.</p>
+        {kicker(7, get(about, "label", H))}
+        <h2 class="h2">{hd(get(about, "heading", H))}</h2>
+{about_paras}
         <div class="licenses">
-          <div class="license"><i class="fa-solid fa-building"></i><small>Building</small><strong>CBC1264899</strong></div>
-          <div class="license"><i class="fa-solid fa-bolt"></i><small>Electrical</small><strong>EC13003241</strong></div>
-          <div class="license"><i class="fa-solid fa-faucet"></i><small>Plumbing</small><strong>CFC1431064</strong></div>
+{licenses_html}
         </div>
-        <p class="corp">Divisions of CIA Solutions, Corp. JV Triphase Development Corp.</p>
+        <p class="corp">{e(get(about, "corporate_line", H))}</p>
       </div>
       <div class="about__card reveal reveal-d1">
         <img src="assets/img/logo-500.png" alt="U.S. Construction &amp; Plumbing Authority logo" width="400" height="364" loading="lazy">
-        <blockquote>&ldquo;The quality craftsmanship you expect and deserve.&rdquo;</blockquote>
-        <cite>U.S. Construction &amp; Plumbing Authority</cite>
+        <blockquote>&ldquo;{e(get(about, "quote", H))}&rdquo;</blockquote>
+        <cite>{e(SITE_NAME)}</cite>
       </div>
     </div>
   </section>
-
+{home_gallery}
   <section class="section section--white">
     <div class="container">
       <div class="head">
-        <div class="reveal"><span class="kicker">08 <span>&mdash; Service areas</span></span><h2 class="h2">Two coasts. <em>One standard of quality.</em></h2></div>
-        <p class="reveal reveal-d1">Servicing Florida&rsquo;s Treasure Coast from Port St. Lucie and Florida&rsquo;s Gold Coast from Boca Raton.</p>
+        <div class="reveal">{kicker(areas_num, get(areas, "label", H))}<h2 class="h2">{hd(get(areas, "heading", H))}</h2></div>
+        <p class="reveal reveal-d1">{rich(get(areas, "lead", H))}</p>
       </div>
       <div class="locations">
-        <div class="location reveal">
-          <div class="location__map"><iframe title="Map — Port St. Lucie office" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://maps.google.com/maps?q=4166+SW+Endicott+St,+Port+St.+Lucie,+FL+34953&amp;z=13&amp;output=embed"></iframe></div>
-          <div class="location__body"><div><small>Treasure Coast</small><h3>Port St. Lucie</h3><p>4166 SW Endicott St., Port St. Lucie, FL 34953</p></div><a class="btn btn--dark btn--sm" href="{TC[1]}"><i class="fa-solid fa-phone"></i> {TC[0]}</a></div>
-        </div>
-        <div class="location reveal reveal-d1">
-          <div class="location__map"><iframe title="Map — Boca Raton office" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://maps.google.com/maps?q=20423+State+Rd+7,+Boca+Raton,+FL+33498&amp;z=13&amp;output=embed"></iframe></div>
-          <div class="location__body"><div><small>Gold Coast</small><h3>Boca Raton</h3><p>20423 State Rd. 7, Suite F6-245, Boca Raton, FL 33498</p></div><a class="btn btn--dark btn--sm" href="{GC[1]}"><i class="fa-solid fa-phone"></i> {GC[0]}</a></div>
-        </div>
+{locations_html}
       </div>
     </div>
   </section>
@@ -890,13 +984,14 @@ home = f"""
   </main>
 {THERMAL_FILTER}
 """
-write("index.html", head("", "U.S. Construction & Plumbing Authority | Florida Contractor",
-      "Licensed & insured plumbing, electrical, remodeling, building inspections and trade work on Florida's Treasure Coast and Gold Coast. Free on-site evaluations.",
-      "index.html", schema=True)
-      + header("", "index.html") + home + footer(""))
 
-# ------------------------------------------------------------------ DIVISION PAGES
-def division_page(fname, active, kicker, h1, lead, media, media_cap, tall, services, division, diagrams, cta_title, title, desc, extra=""):
+# ================================================================== DIVISION PAGES
+P = "content/pages.yml"
+
+def division_page(fname, active, crumb, page_key, media, media_cap, tall, services, division, cta_title, title, desc):
+    txt = section(PAGES_TXT, page_key, P)
+    w = f"{P} → {page_key}"
+    diagrams = [k for k in DIAGRAM_ORDER if DIAGRAMS[k][3] == division]
     dg_note = "Click any diagram to explore every numbered leak point." if any(POINTS.get(k) for k in diagrams) else "Click any diagram to enlarge it and see where faults commonly occur."
     grid = "".join(svc_card(division, s) for s in services)
     dgs = "".join(dg_card(k, tall) for k in diagrams)
@@ -913,12 +1008,12 @@ def division_page(fname, active, kicker, h1, lead, media, media_cap, tall, servi
     <div class="hero__bg"></div>
     <div class="container page-hero__grid">
       <div>
-        {crumbs([("index.html", "Home"), (None, kicker)])}
-        <h1 class="reveal reveal-d1">{h1}</h1>
-        <p class="lead reveal reveal-d2">{lead}</p>
+        {crumbs([("index.html", "Home"), (None, crumb)])}
+        <h1 class="reveal reveal-d1">{hd(get(txt, "heading", w))}</h1>
+        <p class="lead reveal reveal-d2">{rich(get(txt, "lead", w))}</p>
         <div class="hero__actions reveal reveal-d3">
           <a href="schedule.html?division={division}" class="btn btn--red">Schedule a Free Evaluation <i class="fa-solid fa-arrow-right"></i></a>
-          <a href="{TC[1]}" class="btn btn--glass"><i class="fa-solid fa-phone"></i> {TC[0]}</a>
+          <a href="{PRIMARY["tel"]}" class="btn btn--glass"><i class="fa-solid fa-phone"></i> {e(PRIMARY["phone"])}</a>
         </div>
         <div class="mini-trust reveal reveal-d3"><span><i class="fa-solid fa-shield-halved"></i> Licensed &amp; insured</span><span><i class="fa-solid fa-temperature-half"></i> Infrared diagnostics</span><span><i class="fa-solid fa-file-invoice-dollar"></i> Transparent estimates</span></div>
       </div>
@@ -939,7 +1034,7 @@ def division_page(fname, active, kicker, h1, lead, media, media_cap, tall, servi
       </div>
     </div>
   </section>
-{extra}
+
   <section class="section section--white">
     <div class="container">
       <div class="head">
@@ -950,32 +1045,25 @@ def division_page(fname, active, kicker, h1, lead, media, media_cap, tall, servi
       </div>
     </div>
   </section>
-{final_cta("", cta_title)}
+{gallery_section(division, 3)}{final_cta("", hd(get(txt, "cta_heading", w)))}
   </main>
 """
     write(fname, head("", title, desc, fname) + header("", active) + body + footer(""))
 
-division_page("plumbing.html", "plumbing.html", "Plumbing Division",
-    "PSL Plumbing <em>&amp; Drains.</em>",
-    "Leak detection, drains, water heaters, re-piping and sewer lines &mdash; handled by licensed &amp; insured, code-compliant plumbers. We also have diagrams that may assist you in identifying areas where a leak, deterioration or break can occur.",
-    "dg-repiping.jpg", "Whole-house plumbing &mdash; 22 leak points", False, PLUMBING, "plumbing",
-    ["water-heater", "bathtub", "shower", "kitchen", "repiping", "sewer"],
-    "Ready to evaluate your <em>plumbing concerns?</em>",
-    "Plumbing Services | PSL Plumbing & Drains",
+repiping_pins = len(POINTS.get("repiping", []))
+division_page("plumbing.html", "plumbing.html", "Plumbing Division", "plumbing",
+    "dg-repiping.jpg", f"Whole-house plumbing &mdash; {repiping_pins} leak points" if repiping_pins else "Whole-house plumbing", False, PLUMBING, "plumbing",
+    None, "Plumbing Services | PSL Plumbing & Drains",
     "Leak detection, drain clearing, water heaters, re-piping, sewer lines, toilets and faucets. Licensed & insured plumbers serving Florida's Treasure Coast and Gold Coast.")
 
-division_page("electrical.html", "electrical.html", "Electrical Division",
-    "Triphase <em>Electrical.</em>",
-    "Breaker panels, circuits, lighting, ceiling fans and generators. Our infrared-certified thermography specialists help locate electrical faults early.",
+division_page("electrical.html", "electrical.html", "Electrical Division", "electrical",
     "crop-panel.jpg", "Circuit breaker panel &mdash; fault points", True, ELECTRICAL, "electrical",
-    ["panel", "disconnect", "receptacles", "fixtures"],
-    "Ready to evaluate your <em>electrical concerns?</em>",
-    "Electrical Services | Triphase Electrical",
+    None, "Electrical Services | Triphase Electrical",
     "Breaker panel corrections, circuits, lighting, ceiling fans, receptacles, generators and thermal-imaging diagnostics by licensed electricians in Florida.")
 
-# ------------------------------------------------------------------ SERVICE PAGES
+# ================================================================== SERVICE PAGES
 def service_page(division, s, siblings):
-    slug, icon, title, short, intro, options, signs, dg = s
+    slug, icon_cls, title, short, intro, options, signs, dg = s
     b = "../"
     div_name = "Plumbing" if division == "plumbing" else "Electrical"
     div_brand = "PSL Plumbing &amp; Drains" if division == "plumbing" else "Triphase Electrical"
@@ -988,14 +1076,24 @@ def service_page(division, s, siblings):
         <div class="detail__block reveal">
           <span class="kicker">Diagram</span>
           <h2 style="margin-top:12px">{dtitle}</h2>
-          <figure class="detail__figure{' detail__figure--tall' if division == 'electrical' else ''}" {lb_attrs(dg, button=False)}>
+          <figure class="detail__figure{' detail__figure--tall' if DIAGRAMS[dg][3] == 'electrical' else ''}" {lb_attrs(dg, button=False)}>
             {frame(dg, b)}{lb_template(dg, b)}
             <figcaption><i class="fa-solid fa-circle-info"></i><span>{dtext} {'Hover or tap a number to see each point. ' if POINTS.get(dg) else ''}</span><button type="button" class="dg-enlarge" data-open-lightbox><i class="fa-solid fa-expand"></i> Enlarge</button></figcaption>
           </figure>
           {legend(dg)}
         </div>"""
     rel = "".join(f'<a href="{division}-{x[0]}.html">{x[2]} <i class="fa-solid fa-arrow-right"></i></a>' for x in siblings if x[0] != slug)
-    plain_title = title.replace("&amp;", "&")
+    related = f"""
+  <section class="section section--white">
+    <div class="container">
+      <div class="head head--stack reveal"><span class="kicker">More {div_name.lower()} services</span><h2 class="h2">Other ways <em>we can help.</em></h2></div>
+      <div class="related">{rel}</div>
+    </div>
+  </section>
+""" if rel else ""
+    plain_title = unescape(title)
+    q = quote_plus(plain_title)
+    phones = "\n".join(f'          <a href="{o["tel"]}">{e(o["region"])} <b>{e(o["phone"])}</b></a>' for o in OFFICES)
     body = f"""
   <main>
   <section class="page-hero">
@@ -1006,8 +1104,8 @@ def service_page(division, s, siblings):
         <h1 class="reveal reveal-d1">{title}</h1>
         <p class="lead reveal reveal-d2">{intro}</p>
         <div class="hero__actions reveal reveal-d3">
-          <a href="{b}schedule.html?division={division}&amp;service={plain_title.replace(' ', '+').replace('&', '%26')}" class="btn btn--red">Request This Service <i class="fa-solid fa-arrow-right"></i></a>
-          <a href="{TC[1]}" class="btn btn--glass"><i class="fa-solid fa-phone"></i> {TC[0]}</a>
+          <a href="{b}schedule.html?division={division}&amp;service={q}" class="btn btn--red">Request This Service <i class="fa-solid fa-arrow-right"></i></a>
+          <a href="{PRIMARY["tel"]}" class="btn btn--glass"><i class="fa-solid fa-phone"></i> {e(PRIMARY["phone"])}</a>
         </div>
       </div>
     </div>
@@ -1031,42 +1129,47 @@ def service_page(division, s, siblings):
         <span class="kicker kicker--light">{div_brand}</span>
         <h3 style="margin-top:12px">Free on-site evaluation</h3>
         <p>One of our officers will call you to schedule a visit to evaluate your project at no cost to you.</p>
-        <a href="{b}schedule.html?division={division}&amp;service={plain_title.replace(' ', '+').replace('&', '%26')}" class="btn btn--red btn--block">Schedule Now <i class="fa-solid fa-arrow-right"></i></a>
+        <a href="{b}schedule.html?division={division}&amp;service={q}" class="btn btn--red btn--block">Schedule Now <i class="fa-solid fa-arrow-right"></i></a>
         <div class="aside__phones">
-          <a href="{TC[1]}">Treasure Coast <b>{TC[0]}</b></a>
-          <a href="{GC[1]}">Gold Coast <b>{GC[0]}</b></a>
+{phones}
         </div>
         <div class="aside__lic">Licensed &amp; insured &middot; {LIC}</div>
       </aside>
     </div>
   </section>
-
-  <section class="section section--white">
-    <div class="container">
-      <div class="head head--stack reveal"><span class="kicker">More {div_name.lower()} services</span><h2 class="h2">Other ways <em>we can help.</em></h2></div>
-      <div class="related">{rel}</div>
-    </div>
-  </section>
-{final_cta(b)}
+{related}{final_cta(b)}
   </main>
 """
-    desc = f"{plain_title} in Port St. Lucie & Boca Raton, FL. {unescape(short)} Licensed & insured {div_name.lower()} contractors. Free on-site evaluation."
+    short_plain = plain(unescape(short))
+    cities = " & ".join(o["city"] for o in OFFICES)
+    desc = f"{plain_title} in {cities}, FL. {short_plain} Licensed & insured {div_name.lower()} contractors. Free on-site evaluation."
     if len(desc) > 160:
-        desc = f"{plain_title} in Port St. Lucie & Boca Raton, FL. {unescape(short)} Free on-site evaluation."
+        desc = f"{plain_title} in {cities}, FL. {short_plain} Free on-site evaluation."
+    if len(desc) > 160:
+        desc = desc[:157].rsplit(" ", 1)[0] + "…"
     html = head(b, f"{plain_title} | {div_brand.replace('&amp;', '&')}", desc, f"services/{division}-{slug}.html") + header(b, f"{division}.html") + body + footer(b)
-    # service pages live one folder down: fix relative asset links in diagram cards / lightbox
     write(f"services/{division}-{slug}.html", html)
 
 for s in PLUMBING: service_page("plumbing", s, PLUMBING)
 for s in ELECTRICAL: service_page("electrical", s, ELECTRICAL)
 
-# ------------------------------------------------------------------ BUILDING
-bcards = "".join(f"""
-        <a class="svc-card reveal" href="schedule.html?division=building&amp;service={t.replace('&amp;', '%26').replace(' ', '+')}">
-          <span class="svc-card__icon"><i class="fa-solid {i}"></i></span>
-          <h3>{t}</h3><p>{d}</p>
+# ================================================================== BUILDING
+BW = f"{P} → building"
+btxt = section(PAGES_TXT, "building", P)
+bcards = []
+for i, c in enumerate(get(btxt, "services", BW, list), 1):
+    w = f"{BW} → services {i}"
+    t_ = get(c, "title", w)
+    bcards.append(f"""
+        <a class="svc-card reveal" href="schedule.html?division=building&amp;service={quote_plus(t_)}">
+          <span class="svc-card__icon"><i class="fa-solid {icon(get(c, "icon", w), w)}"></i></span>
+          <h3>{e(t_)}</h3><p>{e(get(c, "text", w))}</p>
           <span class="svc-card__foot">Request an Evaluation <i class="fa-solid fa-arrow-right"></i></span>
-        </a>""" for i, t, d in BUILDING)
+        </a>""")
+insp_html = "\n".join(
+    f'        <li class="why__item reveal"><span class="why__num">{i:02d}</span><div><h3>{e(t)}</h3><p>{e(x)}</p></div></li>'
+    for i, (t, x) in enumerate(items(btxt, "inspections", BW), 1))
+building_gallery = gallery_section("building", 3)
 building = f"""
   <main>
   <section class="page-hero">
@@ -1074,13 +1177,13 @@ building = f"""
     <div class="container page-hero__grid">
       <div>
         {crumbs([("index.html", "Home"), (None, "Building &amp; Remodeling Division")])}
-        <h1 class="reveal reveal-d1">U.S. <em>Construction.</em></h1>
-        <p class="lead reveal reveal-d2">Remodeling, building inspections and trade work by licensed &amp; insured, code-compliant builders. Our quality craftsmanship enhances the safety, elegance and functionality of your home or property.</p>
+        <h1 class="reveal reveal-d1">{hd(get(btxt, "heading", BW))}</h1>
+        <p class="lead reveal reveal-d2">{rich(get(btxt, "lead", BW))}</p>
         <div class="hero__actions reveal reveal-d3">
           <a href="schedule.html?division=building" class="btn btn--red">Schedule a Free Evaluation <i class="fa-solid fa-arrow-right"></i></a>
-          <a href="{TC[1]}" class="btn btn--glass"><i class="fa-solid fa-phone"></i> {TC[0]}</a>
+          <a href="{PRIMARY["tel"]}" class="btn btn--glass"><i class="fa-solid fa-phone"></i> {e(PRIMARY["phone"])}</a>
         </div>
-        <div class="mini-trust reveal reveal-d3"><span><i class="fa-solid fa-building"></i> CBC1264899</span><span><i class="fa-solid fa-clipboard-check"></i> Permitting support</span><span><i class="fa-solid fa-temperature-half"></i> Infrared inspections</span></div>
+        <div class="mini-trust reveal reveal-d3"><span><i class="fa-solid fa-building"></i> {e(next((l["number"] for l in LICENSES if l["type"] == "building"), "Licensed &amp; insured"))}</span><span><i class="fa-solid fa-clipboard-check"></i> Permitting support</span><span><i class="fa-solid fa-temperature-half"></i> Infrared inspections</span></div>
       </div>
       <figure class="page-hero__media page-hero__media--static">
         <div class="dg-frame">{img_tag("crop-house.jpg", "", "Cross-section of a home showing its plumbing and building systems", lazy=False)}</div>
@@ -1092,10 +1195,10 @@ building = f"""
   <section class="section">
     <div class="container">
       <div class="head">
-        <div class="reveal"><span class="kicker">01 <span>&mdash; Services</span></span><h2 class="h2">Building &amp; <em>remodeling.</em></h2></div>
-        <p class="reveal reveal-d1">Plumbing, electrical and building trades under one company &mdash; fewer handoffs, fewer delays.</p>
+        <div class="reveal"><span class="kicker">01 <span>&mdash; Services</span></span><h2 class="h2">{hd(get(btxt, "services_heading", BW))}</h2></div>
+        <p class="reveal reveal-d1">{rich(get(btxt, "services_intro", BW))}</p>
       </div>
-      <div class="svc-grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">{bcards}
+      <div class="svc-grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">{"".join(bcards)}
       </div>
     </div>
   </section>
@@ -1104,23 +1207,31 @@ building = f"""
     <div class="container why">
       <div class="why__sticky reveal">
         <span class="kicker">02 <span>&mdash; Building inspections</span></span>
-        <h2 class="h2">Address matters <em>before they become costly.</em></h2>
-        <p class="lead">We evaluate critical components, identify deficiencies, and highlight areas that may require attention.</p>
+        <h2 class="h2">{hd(get(btxt, "inspections_heading", BW))}</h2>
+        <p class="lead">{rich(get(btxt, "inspections_lead", BW))}</p>
       </div>
       <ol class="why__list">
-        <li class="why__item reveal"><span class="why__num">01</span><div><h3>Plan repairs</h3><p>Know what needs attention and prioritize the work.</p></div></li>
-        <li class="why__item reveal"><span class="why__num">02</span><div><h3>Budget effectively</h3><p>Transparent estimates so you can plan with confidence.</p></div></li>
-        <li class="why__item reveal"><span class="why__num">03</span><div><h3>Reduce risk</h3><p>Lower the risk of floods, insurance claims, health risks associated with damp or humid conditions, and costly last-minute corrections.</p></div></li>
+{insp_html}
       </ol>
     </div>
   </section>
-{final_cta("", "Ready to evaluate your <em>building concerns?</em>")}
+{building_gallery}{final_cta("", hd(get(btxt, "cta_heading", BW)))}
   </main>
 """
 write("building.html", head("", "Building & Remodeling | U.S. Construction",
       "Remodeling, building inspections and trade work by licensed & insured builders on Florida's Treasure Coast and Gold Coast. Free on-site evaluations.", "building.html") + header("", "building.html") + building + footer(""))
 
-# ------------------------------------------------------------------ COMMERCIAL
+# ================================================================== COMMERCIAL
+CW = f"{P} → commercial"
+ctxt = section(PAGES_TXT, "commercial", P)
+pro_html = "\n".join(
+    f'        <li class="why__item reveal"><span class="why__num">{i:02d}</span><div><h3>{e(t)}</h3><p>{e(x)}</p></div></li>'
+    for i, (t, x) in enumerate(items(ctxt, "proactive", CW), 1))
+RISK_ICONS = ["fa-house-flood-water", "fa-file-shield", "fa-lungs", "fa-person-digging", "fa-shield-halved", "fa-clipboard-check"]
+risk_html = "\n".join(
+    f'        <div class="benefit"><i class="fa-solid {RISK_ICONS[i % len(RISK_ICONS)]}"></i><strong>{e(t)}</strong><span>{e(x)}</span></div>'
+    for i, (t, x) in enumerate(items(ctxt, "risks", CW)))
+lic_of = {l["type"]: e(l["number"]) for l in LICENSES}
 commercial = f"""
   <main>
   <section class="page-hero">
@@ -1128,11 +1239,11 @@ commercial = f"""
     <div class="container page-hero__grid page-hero__grid--solo">
       <div>
         {crumbs([("index.html", "Home"), (None, "Commercial Clients")])}
-        <h1 class="reveal reveal-d1">Built for <em>commercial</em> schedules.</h1>
-        <p class="lead reveal reveal-d2">Our meticulous work reduces labor costs, on-site corrections and roughing relocations that cause delays, material waste and unnecessary costs. This helps keep schedules flowing uninterrupted, on time and on budget.</p>
+        <h1 class="reveal reveal-d1">{hd(get(ctxt, "heading", CW))}</h1>
+        <p class="lead reveal reveal-d2">{rich(get(ctxt, "lead", CW))}</p>
         <div class="hero__actions reveal reveal-d3">
           <a href="schedule.html?division=commercial" class="btn btn--red">Request a Site Evaluation <i class="fa-solid fa-arrow-right"></i></a>
-          <a href="{TC[1]}" class="btn btn--glass"><i class="fa-solid fa-phone"></i> {TC[0]}</a>
+          <a href="{PRIMARY["tel"]}" class="btn btn--glass"><i class="fa-solid fa-phone"></i> {e(PRIMARY["phone"])}</a>
         </div>
       </div>
     </div>
@@ -1142,13 +1253,11 @@ commercial = f"""
     <div class="container why">
       <div class="why__sticky reveal">
         <span class="kicker">01 <span>&mdash; Proactive evaluations</span></span>
-        <h2 class="h2">Plan ahead. <em>Avoid costly surprises.</em></h2>
-        <p class="lead">We evaluate critical components, identify deficiencies, and highlight areas that may require attention, giving you the opportunity to:</p>
+        <h2 class="h2">{hd(get(ctxt, "proactive_heading", CW))}</h2>
+        <p class="lead">{rich(get(ctxt, "proactive_lead", CW))}</p>
       </div>
       <ol class="why__list">
-        <li class="why__item reveal"><span class="why__num">01</span><div><h3>Plan repairs</h3><p>Schedule work around your operations instead of reacting to failures.</p></div></li>
-        <li class="why__item reveal"><span class="why__num">02</span><div><h3>Budget effectively</h3><p>Transparent estimates that let you allocate budget with confidence.</p></div></li>
-        <li class="why__item reveal"><span class="why__num">03</span><div><h3>Address matters early</h3><p>Resolve issues before they become costly &mdash; for a smoother, more predictable experience.</p></div></li>
+{pro_html}
       </ol>
     </div>
   </section>
@@ -1157,13 +1266,10 @@ commercial = f"""
     <div class="container commercial">
       <div class="reveal">
         <span class="kicker kicker--light">02 <span>&mdash; Risk reduction</span></span>
-        <h2 class="h2">A proactive approach <em>reduces:</em></h2>
+        <h2 class="h2">{hd(get(ctxt, "risk_heading", CW))}</h2>
       </div>
       <div class="benefits reveal reveal-d1">
-        <div class="benefit"><i class="fa-solid fa-house-flood-water"></i><strong>The risk of floods</strong><span>Leaks and failures caught early.</span></div>
-        <div class="benefit"><i class="fa-solid fa-file-shield"></i><strong>Insurance claims</strong><span>Fewer incidents, fewer claims.</span></div>
-        <div class="benefit"><i class="fa-solid fa-lungs"></i><strong>Health risks</strong><span>Associated with damp or humid conditions.</span></div>
-        <div class="benefit"><i class="fa-solid fa-person-digging"></i><strong>Last-minute corrections</strong><span>Costly corrections that stall schedules.</span></div>
+{risk_html}
       </div>
     </div>
   </section>
@@ -1175,19 +1281,27 @@ commercial = f"""
         <p class="reveal reveal-d1">Licensed divisions that work together on your project.</p>
       </div>
       <div class="svc-grid">
-        <a class="svc-card reveal" href="plumbing.html"><span class="svc-card__icon"><i class="fa-solid fa-faucet-drip"></i></span><h3>PSL Plumbing &amp; Drains</h3><p>Leak detection, re-piping, drains, sewer lines and water heaters.</p><span class="svc-card__foot">CFC1431064 <i class="fa-solid fa-arrow-right"></i></span></a>
-        <a class="svc-card reveal reveal-d1" href="electrical.html"><span class="svc-card__icon"><i class="fa-solid fa-bolt"></i></span><h3>Triphase Electrical</h3><p>Panels, circuits, lighting, generators and thermal diagnostics.</p><span class="svc-card__foot">EC13003241 <i class="fa-solid fa-arrow-right"></i></span></a>
-        <a class="svc-card reveal reveal-d2" href="building.html"><span class="svc-card__icon"><i class="fa-solid fa-helmet-safety"></i></span><h3>U.S. Construction</h3><p>Remodeling, building inspections, trade work and permitting.</p><span class="svc-card__foot">CBC1264899 <i class="fa-solid fa-arrow-right"></i></span></a>
+        <a class="svc-card reveal" href="plumbing.html"><span class="svc-card__icon"><i class="fa-solid fa-faucet-drip"></i></span><h3>PSL Plumbing &amp; Drains</h3><p>Leak detection, re-piping, drains, sewer lines and water heaters.</p><span class="svc-card__foot">{lic_of.get("plumbing", "Licensed &amp; insured")} <i class="fa-solid fa-arrow-right"></i></span></a>
+        <a class="svc-card reveal reveal-d1" href="electrical.html"><span class="svc-card__icon"><i class="fa-solid fa-bolt"></i></span><h3>Triphase Electrical</h3><p>Panels, circuits, lighting, generators and thermal diagnostics.</p><span class="svc-card__foot">{lic_of.get("electrical", "Licensed &amp; insured")} <i class="fa-solid fa-arrow-right"></i></span></a>
+        <a class="svc-card reveal reveal-d2" href="building.html"><span class="svc-card__icon"><i class="fa-solid fa-helmet-safety"></i></span><h3>U.S. Construction</h3><p>Remodeling, building inspections, trade work and permitting.</p><span class="svc-card__foot">{lic_of.get("building", "Licensed &amp; insured")} <i class="fa-solid fa-arrow-right"></i></span></a>
       </div>
     </div>
   </section>
-{final_cta("", "Keep your project <em>on time and on budget.</em>", "Talk to our licensed plumbing, electrical and building team about your next commercial project.")}
+{gallery_section("commercial", 4)}{final_cta("", hd(get(ctxt, "cta_heading", CW)), rich(get(ctxt, "cta_lead", CW)))}
   </main>
 """
 write("commercial.html", head("", "Commercial Services | U.S. Construction & Plumbing Authority",
       "Commercial plumbing, electrical and building services that reduce labor costs, on-site corrections and delays. Keep schedules on time and on budget.", "commercial.html") + header("", "commercial.html") + commercial + footer(""))
 
-# ------------------------------------------------------------------ SCHEDULE
+# ================================================================== SCHEDULE
+SW = f"{P} → schedule"
+stxt = section(PAGES_TXT, "schedule", P)
+info_phones = "\n".join(
+    f'          <li><i class="fa-solid fa-phone"></i><div><small>{e(o["region"])}</small><a href="{o["tel"]}">{e(o["phone"])}</a></div></li>'
+    for o in OFFICES)
+states = sorted({o["state"] for o in OFFICES})
+offices_line = " &amp; ".join(e(o["city"]) for o in OFFICES) + (f", {e(states[0])}" if len(states) == 1 else "")
+call_links = " or ".join(f'<a href="{o["tel"]}">{e(o["phone"])}</a>' for o in OFFICES)
 schedule = f"""
   <main>
   <section class="page-hero" style="padding-bottom:120px">
@@ -1195,19 +1309,18 @@ schedule = f"""
     <div class="container form-shell" style="position:relative">
       <div>
         {crumbs([("index.html", "Home"), (None, "Schedule")])}
-        <h1 class="reveal reveal-d1">Schedule your <em>appointment now.</em></h1>
-        <p class="lead reveal reveal-d2">Fill out this form to request a complimentary visit to your site. One of our officers will call you to schedule a visit to evaluate your project at no cost to you.</p>
+        <h1 class="reveal reveal-d1">{hd(get(stxt, "heading", SW))}</h1>
+        <p class="lead reveal reveal-d2">{rich(get(stxt, "lead", SW))}</p>
         <ul class="info-list reveal reveal-d3">
-          <li><i class="fa-solid fa-phone"></i><div><small>Treasure Coast</small><a href="{TC[1]}">{TC[0]}</a></div></li>
-          <li><i class="fa-solid fa-phone"></i><div><small>Gold Coast</small><a href="{GC[1]}">{GC[0]}</a></div></li>
-          <li><i class="fa-solid fa-envelope"></i><div><small>Email</small><a href="mailto:{EMAIL}">{EMAIL}</a></div></li>
-          <li><i class="fa-solid fa-location-dot"></i><div><small>Offices</small><strong>Port St. Lucie &amp; Boca Raton, FL</strong></div></li>
+{info_phones}
+          <li><i class="fa-solid fa-envelope"></i><div><small>Email</small><a href="mailto:{e(EMAIL)}">{e(EMAIL)}</a></div></li>
+          <li><i class="fa-solid fa-location-dot"></i><div><small>Offices</small><strong>{offices_line}</strong></div></li>
         </ul>
       </div>
       <div class="form-card reveal reveal-d1">
         <h2>Free evaluation / estimate</h2>
         <p>No cost. No obligation. We&rsquo;ll call you to confirm your visit.</p>
-        <form id="appointmentForm" novalidate>
+        <form id="appointmentForm" novalidate data-email="{e(EMAIL)}">
           <fieldset class="field">
             <legend>What do you need help with?</legend>
             <div class="chips">
@@ -1232,14 +1345,14 @@ schedule = f"""
             <small><i class="fa-solid fa-rotate"></i><br>reCAPTCHA</small>
           </div>
           <button type="submit" class="btn btn--red btn--block">Request My Free Evaluation <i class="fa-solid fa-arrow-right"></i></button>
-          <p class="form-note">Prefer to talk? Call <a href="{TC[1]}">{TC[0]}</a> or <a href="{GC[1]}">{GC[0]}</a></p>
+          <p class="form-note">Prefer to talk? Call {call_links}</p>
           <p class="form-privacy">We use your information only to respond to your request.</p>
         </form>
         <div class="form-success" role="status">
           <i class="fa-solid fa-circle-check"></i>
           <h2 tabindex="-1">Thank you!</h2>
           <p>Your email app should open with your request ready to send. Please press <strong>Send</strong> in your email app &mdash; one of our officers will then call you to schedule your free evaluation.</p>
-          <p class="form-fallback">Email didn&rsquo;t open? Write to <a href="mailto:{EMAIL}">{EMAIL}</a> or call <a href="{TC[1]}">{TC[0]}</a>.</p>
+          <p class="form-fallback">Email didn&rsquo;t open? Write to <a href="mailto:{e(EMAIL)}">{e(EMAIL)}</a> or call <a href="{PRIMARY["tel"]}">{e(PRIMARY["phone"])}</a>.</p>
           <button type="button" class="btn btn--line-dark btn--sm" data-edit-request>Edit My Request</button>
         </div>
       </div>
@@ -1250,7 +1363,13 @@ schedule = f"""
 write("schedule.html", head("", "Schedule a Free Evaluation | U.S. Construction Authority",
       "Request a complimentary site visit. One of our officers will call you to schedule a free evaluation of your plumbing, electrical or building project.", "schedule.html") + header("", "") + schedule + footer(""))
 
-# ------------------------------------------------------------------ 404
+# ================================================================== HOME (written after the division pages so all data is validated)
+write("index.html", head("", "U.S. Construction & Plumbing Authority | Florida Contractor",
+      "Licensed & insured plumbing, electrical, remodeling, building inspections and trade work on Florida's Treasure Coast and Gold Coast. Free on-site evaluations.",
+      "index.html", schema=True)
+      + header("", "index.html") + home + footer(""))
+
+# ================================================================== 404
 not_found = f"""
   <main>
   <section class="page-hero" style="padding-bottom:120px">
@@ -1262,7 +1381,7 @@ not_found = f"""
         <p class="lead">The page you&rsquo;re looking for may have moved. Try one of our divisions below or call us &mdash; we&rsquo;re happy to help.</p>
         <div class="hero__actions">
           <a href="/index.html" class="btn btn--red">Back to Home <i class="fa-solid fa-arrow-right"></i></a>
-          <a href="{TC[1]}" class="btn btn--glass"><i class="fa-solid fa-phone"></i> {TC[0]}</a>
+          <a href="{PRIMARY["tel"]}" class="btn btn--glass"><i class="fa-solid fa-phone"></i> {e(PRIMARY["phone"])}</a>
         </div>
         <ul class="notfound-links">
           <li><a href="/plumbing.html">Plumbing</a></li><li><a href="/electrical.html">Electrical</a></li>
@@ -1280,19 +1399,38 @@ nf = head("/", "Page Not Found | U.S. Construction & Plumbing Authority", "The p
 write("404.html", nf)
 PAGES.remove("404.html")
 
-# ------------------------------------------------------------------ robots.txt + sitemap.xml
+# ================================================================== robots.txt + sitemap.xml + host headers
 robots = "User-agent: *\nAllow: /\n"
 if SITE_URL:
     robots += f"\nSitemap: {SITE_URL}/sitemap.xml\n"
-    urls = "".join(f"  <url><loc>{SITE_URL}/{'' if p == 'index.html' else p}</loc></url>\n" for p in PAGES)
+    urls = "".join(f"  <url><loc>{public_url(p)}</loc></url>\n" for p in PAGES)
     with open(os.path.join(OUT, "sitemap.xml"), "w", encoding="utf-8") as f:
         f.write(f'<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n{urls}</urlset>\n')
-elif os.path.exists(os.path.join(OUT, "sitemap.xml")):
-    os.remove(os.path.join(OUT, "sitemap.xml"))
 with open(os.path.join(OUT, "robots.txt"), "w", encoding="utf-8") as f:
     f.write(robots)
 
-# ------------------------------------------------------------------ icon subset (Font Awesome, only glyphs in use)
+# Cloudflare Pages reads _headers (Vercel reads vercel.json; both carry the same rules)
+with open(os.path.join(OUT, "_headers"), "w", encoding="utf-8") as f:
+    f.write("""/assets/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/img/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/assets/css/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/assets/js/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: SAMEORIGIN
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
+""")
+
+# ================================================================== icon subset (Font Awesome, only glyphs in use)
 def build_icons():
     fa_css = open(os.path.join(SRC, "fontawesome", "css", "all.min.css"), encoding="utf-8").read()
     used = set()
@@ -1327,9 +1465,9 @@ def build_icons():
         f.write(css)
     return len(rules)
 
-try:
-    n_icons = build_icons()
-except ImportError:
-    n_icons = "skipped (pip install fonttools brotli)"
-
-print("pages:", len(PAGES), "| icons:", n_icons, "| SITE_URL:", SITE_URL or "(not set)")
+n_icons = build_icons()
+stop_on_errors()
+shutil.rmtree(FINAL_OUT, ignore_errors=True)
+os.rename(OUT, FINAL_OUT)
+print(f"OK: {len(PAGES)} pages, {len(PLUMBING)} plumbing + {len(ELECTRICAL)} electrical services, "
+      f"{len(PROJECTS)} gallery photos, {n_icons} icons -> {os.path.relpath(FINAL_OUT, ROOT)}/  (SITE_URL: {SITE_URL or 'not set'})")

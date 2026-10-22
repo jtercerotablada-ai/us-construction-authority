@@ -1,0 +1,42 @@
+# Diagram structure: image file, division and pin positions (x %, y %).
+# Positions are NOT client-editable; pin labels live in content/diagrams/<key>.yml (same order).
+water-heater:
+  image: dg-water-heater.jpg
+  division: plumbing
+  pins: [[19, 7], [32, 7], [20, 15], [43, 12], [50, 15], [58, 12], [65, 7], [86, 17], [90, 31], [66, 23], [55, 40], [75, 40], [41, 52], [55, 53], [50, 68], [33, 71], [48, 80], [63, 91], [82, 61], [93, 66], [79, 76]]
+bathtub:
+  image: dg-bathtub.jpg
+  division: plumbing
+  pins: [[13, 10], [15, 30.5], [11, 38], [25, 51], [47, 12], [49, 27], [38, 36], [51, 40], [49, 47], [69, 6], [66, 21], [70, 31], [69, 37], [72, 45], [88, 54], [43, 61], [47, 74], [70, 76], [15, 62], [22, 80]]
+shower:
+  image: dg-shower.jpg
+  division: plumbing
+  pins: [[37, 4], [52, 4], [56, 10], [52, 21], [44, 24], [64, 21], [31, 24], [31, 30], [19, 21], [24, 45], [48, 49], [52, 59], [28, 63], [82, 36], [86, 17], [86, 58], [17, 72], [50, 72], [43, 81], [50, 83], [57, 94]]
+kitchen:
+  image: dg-kitchen.jpg
+  division: plumbing
+  pins: [[31, 17], [40, 14], [51, 15], [72, 8], [27, 24], [76, 23], [40, 26], [45, 36], [51, 45], [41, 56], [16, 36], [31, 44], [18, 52], [68, 35], [56, 50], [67, 53], [84, 55], [46, 63], [40, 71], [52, 80], [12, 74], [88, 76], [79, 90]]
+repiping:
+  image: dg-repiping.jpg
+  division: plumbing
+  pins: [[8, 69], [12, 64], [25, 60], [42, 61], [61, 66], [73, 68], [67, 7], [53, 14], [38, 26], [52, 20], [80, 22], [39, 33], [19, 44], [37, 46], [58, 48], [66, 45], [80, 46], [91, 43], [96, 62], [38, 77], [41, 86], [92, 91]]
+sewer:
+  image: dg-sewer.jpg
+  division: plumbing
+  pins: []
+panel:
+  image: dg-panel.jpg
+  division: electrical
+  pins: []
+disconnect:
+  image: dg-disconnect.jpg
+  division: electrical
+  pins: []
+receptacles:
+  image: dg-receptacles.jpg
+  division: electrical
+  pins: []
+fixtures:
+  image: dg-fixtures.jpg
+  division: electrical
+  pins: []

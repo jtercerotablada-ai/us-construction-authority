@@ -1,0 +1,16 @@
+title: Water Filters & Softeners
+summary: Repair, replace or install new systems.
+intro: We repair and replace water filters and softeners, and install new systems for better water in your home.
+options:
+- Repair
+- Replace
+- New Install
+reasons:
+- Water tastes or smells unusual
+- Scale buildup on fixtures
+- System leaking or not regenerating
+- Filters that need replacing
+icon: glass-water
+diagram: none
+order: 13
+visible: true

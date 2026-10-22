@@ -1,0 +1,5 @@
+# Build dependencies for _source/build.py (Cloudflare Pages installs these automatically)
+Pillow>=10.0
+fonttools>=4.40
+brotli>=1.0.9
+PyYAML>=6.0.1
