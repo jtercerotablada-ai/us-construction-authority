@@ -271,12 +271,16 @@
       var img = stage.querySelector('img');
       var full = trigger.getAttribute('data-full');
       if (img && full) {
-        // gallery: the grid shows a 4:3 crop, the lightbox shows the whole photo
+        // gallery: the grid shows a 4:3 crop, the lightbox shows the whole photo. A fresh element, because the
+        // cloned one keeps the pixel density picked from the grid srcset and would show the photo too small.
         var size = (trigger.getAttribute('data-full-size') || '').split('x');
-        img.removeAttribute('srcset');
-        img.removeAttribute('sizes');
-        img.src = full;
-        if (size.length === 2) { img.width = +size[0]; img.height = +size[1]; }
+        var photo = new Image();
+        photo.alt = img.alt;
+        photo.className = 'lb-photo';
+        if (size.length === 2) { photo.width = +size[0]; photo.height = +size[1]; }
+        photo.src = full;
+        img.parentNode.replaceChild(photo, img);
+        img = photo;
       }
       if (img) {
         img.removeAttribute('loading');

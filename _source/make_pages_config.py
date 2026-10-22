@@ -113,9 +113,11 @@ site = {
             s("link_text", "Texto del enlace (opcional)", "Ejemplo: Book now", required=False),
             s("link", "Enlace (opcional)", "Ejemplo: schedule.html o https://...", required=False, pattern=LINK),
         ], "Úsalo para promociones o avisos temporales (por ejemplo, temporada de huracanes).", required=False),
-        obj("final_cta", "Llamado final (al pie de cada página)", [
+        obj("final_cta", "Llamado final (inicio y páginas de servicios)", [
             s("heading", "Título", ACCENT), t("lead", "Texto", RICH),
-        ]),
+        ], "El título sale en la página de inicio y en cada servicio. Las páginas de plomería, electricidad, construcción "
+           "y comercial usan su propio «Título del llamado final» (en Otras páginas). El texto sale también en plomería, "
+           "electricidad y construcción; la página comercial tiene su propio texto."),
     ],
 }
 

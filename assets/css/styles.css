@@ -789,3 +789,13 @@ fieldset.field legend { font-size: .78rem; font-weight: 700; color: var(--ink-2)
 .locations > .location:last-child:nth-child(odd) { grid-column: 1 / -1; }
 @media (min-width: 721px) { .locations > .location:last-child:nth-child(odd) .location__map { aspect-ratio: 16 / 5; } }
 .utility__group { row-gap: 4px; }
+/* long unbreakable words typed in the panel (emails, "Plumbing/Electrical") wrap instead of widening the page */
+body { overflow-wrap: anywhere; }
+/* gallery photos in the lightbox: whole photo always fits the screen with its caption, on every device */
+.lightbox__stage .dg-frame img.lb-photo { width: auto; max-width: 100%; max-height: calc(100vh - 150px); max-height: calc(100dvh - 150px); }
+/* footer with many offices: phones never break, columns wrap instead of squeezing */
+.footer__top a[href^="tel:"] { white-space: nowrap; }
+@media (min-width: 1025px) {
+  .footer__top--many { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  .footer__top--many .footer__brand { grid-column: 1 / -1; }
+}

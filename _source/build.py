@@ -171,16 +171,15 @@ def e(s):
     return escape(str(s), quote=True)
 
 def hd(s):
-    """Heading: *words* become the red italic accent."""
-    return re.sub(r"(\*\*?)(?!\s)(.+?)(?<!\s)\1", r"<em>\2</em>", e(s))
+    """Heading: *words* (or **words**) become the red italic accent."""
+    return re.sub(r"(\*{1,3})(?![\s*])(.+?)(?<![\s*])\1(?!\*)",
+                  lambda m: "<em>" + m.group(2).replace("*", "") + "</em>", e(s), flags=re.S)
 
 def rich(s):
-    """Paragraph: **bold** and *italic*."""
-    s = re.sub(r"\*\*(?!\s)(.+?)(?<!\s)\*\*", r"<strong>\1</strong>", e(s))
-    return re.sub(r"\*(?!\s)(.+?)(?<!\s)\*", r"<em>\1</em>", s)
-
-def plain(s):
-    return re.sub(r"\*+", "", str(s))
+    """Paragraph: ***both***, **bold** and *italic*."""
+    s = re.sub(r"\*\*\*(?![\s*])(.+?)(?<![\s*])\*\*\*(?!\*)", r"<strong><em>\1</em></strong>", e(s), flags=re.S)
+    s = re.sub(r"\*\*(?![\s*])(.+?)(?<![\s*])\*\*(?!\*)", r"<strong>\1</strong>", s, flags=re.S)
+    return re.sub(r"(?<!\*)\*(?![\s*])(.+?)(?<![\s*])\*(?!\*)", r"<em>\1</em>", s, flags=re.S)
 
 def attr(text):
     """Text (plain or already escaped) safe for an HTML attribute or <title>."""
@@ -262,9 +261,13 @@ def and_list(items, last=" & "):
 
 STATES = sorted({state_code(o["state"]) for o in OFFICES})
 STATE_NAMES = "Florida" if STATES == ["FL"] else and_list(STATES, " and ")
-CITIES = and_list(o["city"] for o in OFFICES) + (f", {STATES[0]}" if len(STATES) == 1 else "")
-REGIONS = and_list((o["region"] for o in OFFICES), " and ")
-AREA = f"Florida's {REGIONS}" if STATES == ["FL"] and "florida" not in REGIONS.lower() else REGIONS
+CITIES = and_list(dict.fromkeys(o["city"] for o in OFFICES)) + (f", {STATES[0]}" if len(STATES) == 1 else "")
+_regions = list(dict.fromkeys(o["region"] for o in OFFICES))
+if STATES == ["FL"] and not any("florida" in r.lower() for r in _regions):
+    AREA_ON = "on Florida's " + and_list(_regions, " and ")     # "on Florida's Treasure Coast and Gold Coast"
+else:
+    AREA_ON = "across " + and_list((r if "florida" in r.lower() or "," in r else "the " + r for r in _regions), " and ")
+AREA = AREA_ON.split(" ", 1)[1]
 
 LICENSES = []
 for i, l in enumerate(get(SITE, "licenses", W, list), 1):
@@ -409,6 +412,8 @@ def to_srgb(im):
         im = im.transpose(ORIENTATION[orientation])
     if im.mode in ("I;16", "I;16B", "I;16L", "I;16N", "I"):        # 16-bit greyscale: scale, don't clip
         im = im.convert("I").point(lambda v: v / 256).convert("L")
+    family = "GRAY" if im.mode in ("1", "L", "LA", "I", "I;16", "I;16B", "I;16L", "I;16N") or (im.mode in ("P", "PA") and im.palette.mode == "L") \
+        else "CMYK" if im.mode == "CMYK" else "RGB"
     has_alpha = im.mode in ("RGBA", "LA", "PA") or "transparency" in im.info
     if has_alpha:
         im = im.convert("RGBA")
@@ -419,6 +424,8 @@ def to_srgb(im):
             from PIL import ImageCms
             src = ImageCms.ImageCmsProfile(BytesIO(icc))
             space = {"GRAY": "L", "RGB": "RGB", "CMYK": "CMYK"}[src.profile.xcolor_space.strip()]
+            if (src.profile.xcolor_space.strip(), family) not in (("GRAY", "GRAY"), ("RGB", "RGB"), ("RGB", "GRAY"), ("CMYK", "CMYK")):
+                raise ValueError("profile does not match the image (browsers ignore it)")
             alpha = im.getchannel("A") if has_alpha else None
             base = im if im.mode == space else im.convert(space)
             out = ImageCms.profileToProfile(base, src, ImageCms.createProfile("sRGB"), outputMode="RGB")
@@ -645,7 +652,7 @@ def footer(b):
     return f"""
   <footer class="footer">
     <div class="container">
-      <div class="footer__top"{f' style="--offices:{len(OFFICES)}"' if len(OFFICES) != 2 else ""}>
+      <div class="footer__top{" footer__top--many" if len(OFFICES) >= 4 else ""}"{f' style="--offices:{len(OFFICES)}"' if len(OFFICES) != 2 else ""}>
         <div class="footer__brand">
           <img src="{b}assets/img/logo-192.png" alt="U.S. Construction &amp; Plumbing Authority" width="96" height="87" loading="lazy">
           <p>{e(ABOUT_LINE)}</p>
@@ -1242,7 +1249,7 @@ def service_page(division, s, siblings):
 {related}{final_cta(b)}
   </main>
 """
-    short_plain = plain(unescape(short))
+    short_plain = unescape(short)          # summaries are not a formatting field: keep asterisks as typed
     desc = f"{plain_title} in {CITIES}. {short_plain} Licensed & insured {div_name.lower()} contractors. Free on-site evaluation."
     if len(desc) > 160:
         desc = f"{plain_title} in {CITIES}. {short_plain} Free on-site evaluation."
@@ -1320,7 +1327,7 @@ building = f"""
   </main>
 """
 write("building.html", head("", "Building & Remodeling | U.S. Construction",
-      e(f"Remodeling, building inspections and trade work by licensed & insured builders on {AREA}. Free on-site evaluations."), "building.html") + header("", "building.html") + building + footer(""))
+      e(f"Remodeling, building inspections and trade work by licensed & insured builders {AREA_ON}. Free on-site evaluations."), "building.html") + header("", "building.html") + building + footer(""))
 
 # ================================================================== COMMERCIAL
 CW = f"{P} → commercial"
@@ -1465,7 +1472,7 @@ write("schedule.html", head("", "Schedule a Free Evaluation | U.S. Construction 
 
 # ================================================================== HOME (written after the division pages so all data is validated)
 write("index.html", head("", "U.S. Construction & Plumbing Authority | Florida Contractor",
-      e(f"Licensed & insured plumbing, electrical, remodeling, building inspections and trade work on {AREA}. Free on-site evaluations."),
+      e(f"Licensed & insured plumbing, electrical, remodeling, building inspections and trade work {AREA_ON}. Free on-site evaluations."),
       "index.html", schema=True)
       + header("", "index.html") + home + footer(""))
 

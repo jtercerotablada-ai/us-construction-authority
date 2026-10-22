@@ -169,7 +169,7 @@ content:
         message: Usa una dirección que empiece con https:// o el nombre de una página, por ejemplo schedule.html
     description: Úsalo para promociones o avisos temporales (por ejemplo, temporada de huracanes).
   - name: final_cta
-    label: Llamado final (al pie de cada página)
+    label: Llamado final (inicio y páginas de servicios)
     type: object
     fields:
     - name: heading
@@ -188,6 +188,7 @@ content:
       pattern:
         regex: \S
         message: Escribe algo (no solo espacios)
+    description: El título sale en la página de inicio y en cada servicio. Las páginas de plomería, electricidad, construcción y comercial usan su propio «Título del llamado final» (en Otras páginas). El texto sale también en plomería, electricidad y construcción; la página comercial tiene su propio texto.
     required: true
 - name: home
   operations:
