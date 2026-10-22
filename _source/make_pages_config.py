@@ -34,12 +34,16 @@ DIAGRAMS = [  # key, Spanish label, number of numbered points on the image
 def opts(pairs):
     return {"values": [{"value": v, "label": l} for v, l in pairs]}
 
+# Pages CMS counts a single space as "filled in"; the build doesn't, so required text must contain a character
+NONBLANK = {"regex": r"\S", "message": "Escribe algo (no solo espacios)"}
+
 def s(name, label, description=None, required=True, **extra):
     f = {"name": name, "label": label, "type": "string"}
     if description:
         f["description"] = description
     if required:
         f["required"] = True
+        f["pattern"] = dict(NONBLANK)
     f.update(extra)
     return f
 
@@ -54,6 +58,7 @@ def strings(name, label, description=None, required=True, item="text"):
         f["description"] = description
     if required:
         f["required"] = True
+        f["pattern"] = dict(NONBLANK)
     return f
 
 def obj(name, label, fields, description=None, required=True):
@@ -83,10 +88,11 @@ LINK = {"regex": r"^(https?://\S+|mailto:\S+|tel:\S+|[\w\-./]+\.html(#[\w-]+)?|/
         "message": "Usa una dirección que empiece con https:// o el nombre de una página, por ejemplo schedule.html"}
 
 site = {
-    "name": "site", "label": "Datos de la empresa", "type": "file", "path": "content/site.yml", "format": "yaml",
+    "name": "site", "operations": {"delete": False}, "label": "Datos de la empresa", "type": "file", "path": "content/site.yml", "format": "yaml",
     "description": "Teléfonos, direcciones, correo, licencias y aviso superior. Aparecen en todas las páginas.",
     "fields": [
-        s("company_name", "Nombre de la empresa"),
+        s("company_name", "Nombre de la empresa", "Se usa en Google y en la cita de «Sobre nosotros». El logo, el encabezado "
+          "y los títulos de las pestañas los cambia tu desarrollador."),
         s("legal_name", "Razón social", "Aparece en el aviso de derechos al final de la página."),
         t("about_line", "Frase del pie de página"),
         s("email", "Correo de contacto", "Aquí llegan las solicitudes del formulario.", pattern=EMAIL),
@@ -108,13 +114,13 @@ site = {
             s("link", "Enlace (opcional)", "Ejemplo: schedule.html o https://...", required=False, pattern=LINK),
         ], "Úsalo para promociones o avisos temporales (por ejemplo, temporada de huracanes).", required=False),
         obj("final_cta", "Llamado final (al pie de cada página)", [
-            s("heading", "Título", ACCENT), t("lead", "Texto"),
+            s("heading", "Título", ACCENT), t("lead", "Texto", RICH),
         ]),
     ],
 }
 
 home = {
-    "name": "home", "label": "Página de inicio", "type": "file", "path": "content/home.yml", "format": "yaml",
+    "name": "home", "operations": {"delete": False}, "label": "Página de inicio", "type": "file", "path": "content/home.yml", "format": "yaml",
     "fields": [
         obj("hero", "Portada", [
             s("badge", "Etiqueta roja", "Ejemplo: Free"), s("badge_text", "Texto junto a la etiqueta"),
@@ -164,7 +170,7 @@ home = {
 }
 
 gallery = {
-    "name": "gallery", "label": "Fotos de proyectos", "type": "file", "path": "content/gallery.yml", "format": "yaml",
+    "name": "gallery", "operations": {"delete": False}, "label": "Fotos de proyectos", "type": "file", "path": "content/gallery.yml", "format": "yaml",
     "description": "Sube fotos de trabajos terminados. La sección aparece sola cuando hay al menos una foto.",
     "fields": [
         s("heading", "Título de la sección", ACCENT),
@@ -199,13 +205,13 @@ def services(division, label):
             {"name": "diagram", "label": "Diagrama", "type": "select", "required": True, "default": "none",
              "options": opts([("none", "Sin diagrama")] + [(k, n) for k, n, _ in DIAGRAMS])},
             {"name": "order", "label": "Orden", "type": "number", "required": True, "default": 50,
-             "description": "Los números más bajos aparecen primero.", "options": {"min": 0, "max": 999}},
+             "description": "Los números más bajos aparecen primero.", "options": {"min": 1, "max": 999}},
             {"name": "visible", "label": "Mostrar en la web", "type": "boolean", "default": True},
         ],
     }
 
 pages = {
-    "name": "pages", "label": "Otras páginas", "type": "file", "path": "content/pages.yml", "format": "yaml",
+    "name": "pages", "operations": {"delete": False}, "label": "Otras páginas", "type": "file", "path": "content/pages.yml", "format": "yaml",
     "description": "Textos de las páginas de plomería, electricidad, construcción, comercial y agenda.",
     "fields": [
         obj("plumbing", "Página de plomería", [s("heading", "Título", ACCENT), t("lead", "Texto", RICH),
@@ -239,9 +245,9 @@ def diagram(key, label, n):
     if n:
         fields.append({"name": "points", "label": "Nombres de los puntos numerados", "type": "string",
                        "description": f"Uno por cada número del dibujo, en orden (exactamente {n}).",
-                       "required": True, "list": {"min": n, "max": n, "collapsible": False}})
+                       "required": True, "pattern": dict(NONBLANK), "list": {"min": n, "max": n, "collapsible": False}})
     return {"name": f"diagram-{key}", "label": label, "type": "file", "path": f"content/diagrams/{key}.yml",
-            "format": "yaml", "fields": fields}
+            "format": "yaml", "operations": {"delete": False}, "fields": fields}
 
 config = {
     "media": {"input": "assets/img/uploads", "output": "/assets/img/uploads",

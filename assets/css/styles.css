@@ -785,3 +785,7 @@ fieldset.field legend { font-size: .78rem; font-weight: 700; color: var(--ink-2)
 @media (prefers-reduced-motion: reduce) { .gallery__item, .gallery__item img { transition: none; } .gallery__item:hover, .gallery__item:hover img { transform: none; } }
 @media (forced-colors: active) { .announce { border-bottom: 1px solid CanvasText; } }
 @media print { .announce { display: none; } }
+/* odd number of offices: the last card spans the row (1 or 3+ offices) */
+.locations > .location:last-child:nth-child(odd) { grid-column: 1 / -1; }
+@media (min-width: 721px) { .locations > .location:last-child:nth-child(odd) .location__map { aspect-ratio: 16 / 5; } }
+.utility__group { row-gap: 4px; }

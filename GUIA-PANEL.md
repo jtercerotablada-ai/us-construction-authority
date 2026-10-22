@@ -30,10 +30,10 @@ No necesitas contraseña ni cuenta de GitHub.
 2. Cambia el texto.
 3. Pulsa **Save** (Guardar).
 
-**Trucos de formato**
-- En los **títulos**, las palabras entre `*asteriscos*` salen en **rojo e itálica**.
+**Trucos de formato** (solo en los campos que tienen debajo la nota que lo indica; en los demás, los asteriscos se ven tal cual)
+- Campos con la nota «Escribe entre \*asteriscos\*…»: las palabras entre `*asteriscos*` salen en **rojo e itálica**.
   Ejemplo: `Florida’s trusted, *licensed & insured* experts.`
-- En los **párrafos**, el texto entre `**doble asterisco**` sale en **negrita**.
+- Campos con la nota «Usa \*\*doble asterisco\*\*…»: el texto entre `**doble asterisco**` sale en **negrita**.
 
 ## 4. Servicios
 
@@ -53,6 +53,9 @@ No necesitas contraseña ni cuenta de GitHub.
 
 La web reduce y optimiza las fotos sola. La galería aparece cuando hay al menos una foto.
 
+**Para quitar una foto**, bórrala en **Fotos de proyectos** (no en *Media*). Si la borras en *Media*,
+esa foto desaparece de la galería, pero conviene quitarla también de *Fotos de proyectos*.
+
 ## 6. Aviso superior (barra roja)
 
 En **Datos de la empresa → Aviso superior**, marca **Mostrar el aviso** y escribe el texto.
@@ -62,8 +65,10 @@ Para quitarlo, desmarca la casilla y guarda.
 
 ## 7. Si algo sale mal
 
-- Si un cambio tiene un error (por ejemplo, un campo obligatorio vacío o un teléfono incompleto),
-  **la web no se rompe**: sigue la versión anterior y el cambio no se publica. Corrige el campo y guarda de nuevo.
+- El panel no deja guardar si falta un campo obligatorio o si un teléfono, correo o enlace está mal escrito:
+  te marca el campo en rojo. Corrígelo y guarda de nuevo.
+- Si un cambio guardado no aparece en la web después de 5 minutos, avisa a tu desarrollador: la web no se rompe
+  (sigue la versión anterior) y él recibe el detalle del problema.
 - Todos los cambios quedan guardados en un historial, y tu desarrollador puede deshacer cualquiera.
 - Para cambios de diseño, colores o del formulario, contacta a tu desarrollador.
 

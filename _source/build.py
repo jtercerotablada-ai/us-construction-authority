@@ -53,6 +53,10 @@ PARTIAL = OUT + ".partial"   # pages are written here and replace OUT only when 
 def fail(msg):
     ERRORS.append(msg)
 
+def warn(msg):
+    """Problems that only drop one item (e.g. a deleted photo): the rest of the site still publishes."""
+    print("AVISO / WARNING: " + msg, file=sys.stderr)
+
 def stop_on_errors():
     if not ERRORS:
         return
@@ -86,8 +90,10 @@ def load_yaml(rel):
     try:
         with open(path, encoding="utf-8") as f:
             text = f.read()
-        # U+2028/U+2029/U+0085 (pasted from Pages, Keynote, PDFs) are line breaks to PyYAML but not to Pages CMS
-        data = yaml.load(re.sub("[\u2028\u2029\x85]", " ", text), Loader=Loader)
+        # Pasted text (Excel, Word, PDFs, Keynote) can carry tabs, U+2028/U+2029 and C1 controls that Pages CMS
+        # writes as-is but PyYAML rejects. Pages CMS never indents with tabs, so a tab is always inside text.
+        text = re.sub("[\t\u2028\u2029\x85]", " ", text)
+        data = yaml.load(re.sub("[\x7f-\x84\x86-\x9f\ufffe\uffff]", "", text), Loader=Loader)
     except FileNotFoundError:
         fail(f"{rel}: no existe el archivo.")
         return {}
@@ -99,7 +105,17 @@ def load_yaml(rel):
     if not isinstance(data, dict):
         fail(f"{rel}: el archivo está vacío o tiene un formato inválido.")
         return None
-    return data
+    return clean_controls(data)
+
+def clean_controls(v):
+    """Tabs and C0 controls written as escapes (\\t, \\v from PowerPoint...) would show as boxes on the page."""
+    if isinstance(v, str):
+        return re.sub(r"[\x00-\x09\x0b\x0c\x0e-\x1f]", " ", v)
+    if isinstance(v, list):
+        return [clean_controls(x) for x in v]
+    if isinstance(v, dict):
+        return {k: clean_controls(x) for k, x in v.items()}
+    return v
 
 def get(d, key, where, kind=str, required=True, default=None):
     """Read one field, checking its type. Strings are stripped."""
@@ -156,7 +172,7 @@ def e(s):
 
 def hd(s):
     """Heading: *words* become the red italic accent."""
-    return re.sub(r"\*(?!\s)(.+?)(?<!\s)\*", r"<em>\1</em>", e(s))
+    return re.sub(r"(\*\*?)(?!\s)(.+?)(?<!\s)\1", r"<em>\2</em>", e(s))
 
 def rich(s):
     """Paragraph: **bold** and *italic*."""
@@ -236,6 +252,19 @@ for i, o in enumerate(get(SITE, "offices", W, list), 1):
 if not OFFICES:
     OFFICES.append({"region": "", "phone": "", "tel": "", "street": "", "city": "", "state": "", "zip": ""})
 PRIMARY = OFFICES[0]
+
+def state_code(state):
+    return "FL" if state.strip().upper() in ("FL", "FLORIDA") else state.strip()
+
+def and_list(items, last=" & "):
+    items = list(items)
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + last + items[-1]
+
+STATES = sorted({state_code(o["state"]) for o in OFFICES})
+STATE_NAMES = "Florida" if STATES == ["FL"] else and_list(STATES, " and ")
+CITIES = and_list(o["city"] for o in OFFICES) + (f", {STATES[0]}" if len(STATES) == 1 else "")
+REGIONS = and_list((o["region"] for o in OFFICES), " and ")
+AREA = f"Florida's {REGIONS}" if STATES == ["FL"] and "florida" not in REGIONS.lower() else REGIONS
 
 LICENSES = []
 for i, l in enumerate(get(SITE, "licenses", W, list), 1):
@@ -323,16 +352,19 @@ for i, p in enumerate(get(GALLERY, "projects", "content/gallery.yml", list, requ
     if not isinstance(p, dict):
         fail(f"{w}: formato inválido.")
         continue
+    if not any(str(v).strip() for v in p.values() if v is not None):
+        continue                                   # an item emptied in the panel is saved as "- {}"
     img = get(p, "image", w)
     title = get(p, "title", w)
     if not img:
         continue
     rel = unquote(img).lstrip("/")
-    if not rel.startswith(UPLOADS + "/") or ".." in rel or not os.path.isfile(os.path.join(ROOT, rel)):
-        fail(f"{w}: la foto '{img}' no se encuentra. Súbela de nuevo desde el panel.")
+    # A photo deleted from Media (or an unusable file) only drops that photo; it never blocks other edits.
+    if not rel.startswith(UPLOADS + "/") or ".." in rel.split("/") or not os.path.isfile(os.path.join(ROOT, rel)):
+        warn(f"{w}: la foto '{img}' no se encuentra; se omitió de la galería.")
         continue
     if os.path.splitext(rel)[1].lower() not in (".jpg", ".jpeg", ".png", ".webp"):
-        fail(f"{w}: la foto '{img}' debe ser JPG, PNG o WebP.")
+        warn(f"{w}: la foto '{img}' debe ser JPG, PNG o WebP; se omitió de la galería.")
         continue
     cat = get(p, "category", w, required=False) or "all"
     if cat not in ("all", "plumbing", "electrical", "building", "commercial"):
@@ -355,36 +387,70 @@ def img_size(name):
         return im.size
 
 def photo_name(rel, has_alpha, suffix=""):
-    """uploads/cocina/Deck.JPG -> projects/cocina/Deck-jpg.jpg (the extension in the name keeps deck.jpg and
-    deck.png apart; "-800" can't be produced from any upload, so the small copies never collide)."""
+    """uploads/cocina/Deck.JPG -> projects/cocina/Deck-jpg.jpg. The extension in the name keeps deck.jpg and deck.png
+    apart; full-size names always end in -jpg/-jpeg/-png/-webp, so the -800/-1600 grid copies never collide."""
     base, ext = os.path.splitext(rel[len(UPLOADS) + 1:])
-    return f"{PHOTOS}/{base}-{ext[1:].lower()}{suffix}{'.png' if has_alpha else '.jpg'}"
+    return f"{PHOTOS}/{base}-{ext[1:].lower()}{suffix}{'.webp' if has_alpha else '.jpg'}"
+
+ORIENTATION = {2: Image.Transpose.FLIP_LEFT_RIGHT, 3: Image.Transpose.ROTATE_180, 4: Image.Transpose.FLIP_TOP_BOTTOM,
+               5: Image.Transpose.TRANSPOSE, 6: Image.Transpose.ROTATE_270, 7: Image.Transpose.TRANSVERSE,
+               8: Image.Transpose.ROTATE_90}
 
 def to_srgb(im):
     """Rotate per EXIF, convert to 8-bit sRGB (keeping transparency) so every browser shows the same colours."""
     icc = im.info.get("icc_profile")
-    im = ImageOps.exif_transpose(im)
+    try:   # read only the orientation, like browsers do; a malformed EXIF block just means "no rotation"
+        exif = Image.Exif()
+        exif.load(im.info.get("exif") or b"")
+        orientation = exif.get(0x0112, 1)
+    except Exception:
+        orientation = 1
+    if ORIENTATION.get(orientation) is not None:
+        im = im.transpose(ORIENTATION[orientation])
     if im.mode in ("I;16", "I;16B", "I;16L", "I;16N", "I"):        # 16-bit greyscale: scale, don't clip
         im = im.convert("I").point(lambda v: v / 256).convert("L")
-    has_alpha = im.mode in ("RGBA", "LA", "PA") or (im.mode == "P" and "transparency" in im.info)
+    has_alpha = im.mode in ("RGBA", "LA", "PA") or "transparency" in im.info
     if has_alpha:
         im = im.convert("RGBA")
-        has_alpha = im.getchannel("A").getextrema()[0] < 255     # fully opaque PNGs become JPEGs
-    mode = "RGBA" if has_alpha else "RGB"
+        has_alpha = im.getchannel("A").getextrema()[0] < 255     # fully opaque images become JPEGs
     if icc:
         try:
             from io import BytesIO
             from PIL import ImageCms
             src = ImageCms.ImageCmsProfile(BytesIO(icc))
-            return ImageCms.profileToProfile(im, src, ImageCms.createProfile("sRGB"), outputMode=mode), has_alpha
+            space = {"GRAY": "L", "RGB": "RGB", "CMYK": "CMYK"}[src.profile.xcolor_space.strip()]
+            alpha = im.getchannel("A") if has_alpha else None
+            base = im if im.mode == space else im.convert(space)
+            out = ImageCms.profileToProfile(base, src, ImageCms.createProfile("sRGB"), outputMode="RGB")
+            if alpha is not None:
+                out.putalpha(alpha)
+            return out, has_alpha
         except Exception:
             pass                                                  # unusual profile: plain conversion below
-    return im.convert(mode), has_alpha
+    return im.convert("RGBA" if has_alpha else "RGB"), has_alpha
 
-PHOTO = {}   # upload path -> (full path, small path, width, height, small width)
+def cover(im, width):
+    """Centre 4:3 crop (the gallery grid shape), scaled down to at most `width` px wide, never up."""
+    w, h = im.size
+    cw, ch = (w, round(w * 3 / 4)) if w * 3 <= h * 4 else (round(h * 4 / 3), h)
+    left, top = (w - cw) // 2, (h - ch) // 2
+    tw = min(width, cw)
+    return im.resize((tw, max(1, round(tw * 3 / 4))), Image.LANCZOS, box=(left, top, left + cw, top + ch))
+
+PHOTO = {}   # upload path -> {"full": (path, w, h), "grid": [(path, w, h), ...]}
+
+def save_photo(im, path, has_alpha):
+    im.info = {}                                   # no EXIF/GPS, XMP or comments in what we publish
+    os.makedirs(os.path.dirname(os.path.join(OUT, path)), exist_ok=True)
+    if has_alpha:
+        im.save(os.path.join(OUT, path), "WEBP", quality=82)
+    else:
+        im.save(os.path.join(OUT, path), "JPEG", quality=82, optimize=True, progressive=True)
+    return (path, im.size[0], im.size[1])
 
 def process_photos():
-    """Publish only the photos the gallery uses: capped at 2000px plus an 800px copy for phones."""
+    """Publish only the photos the gallery uses: the whole photo (max 2000px) for the lightbox, plus 4:3 crops
+    (800 and 1600px wide) for the grid."""
     taken = {}
     for p in PROJECTS:
         rel = p["image"]
@@ -393,29 +459,27 @@ def process_photos():
         try:
             with Image.open(os.path.join(ROOT, rel)) as im:
                 im, has_alpha = to_srgb(im)
-        except Exception:
-            fail(f"content/gallery.yml: la foto '/{rel}' no se puede abrir (archivo dañado o formato no compatible). "
+        except Exception as err:
+            warn(f"content/gallery.yml: la foto '/{rel}' no se puede abrir ({type(err).__name__}); se omitió. "
                  "Súbela de nuevo como JPG.")
             continue
-        full, small = photo_name(rel, has_alpha), photo_name(rel, has_alpha, "-800")
+        full = photo_name(rel, has_alpha)
         if full.lower() in taken:
-            fail(f"content/gallery.yml: las fotos '/{taken[full.lower()]}' y '/{rel}' tienen el mismo nombre. "
-                 "Cambia el nombre de una de ellas.")
+            warn(f"content/gallery.yml: las fotos '/{taken[full.lower()]}' y '/{rel}' tienen el mismo nombre; "
+                 "se omitió la segunda. Cambia el nombre de una de ellas.")
             continue
         taken[full.lower()] = rel
-        sizes = []
-        for path, cap in ((full, 2000), (small, 800)):
-            out = im.copy()
-            out.thumbnail((cap, cap), Image.LANCZOS)
-            os.makedirs(os.path.dirname(os.path.join(OUT, path)), exist_ok=True)
-            if has_alpha:
-                out.save(os.path.join(OUT, path), "PNG", optimize=True)
-            else:
-                out.save(os.path.join(OUT, path), "JPEG", quality=82, optimize=True, progressive=True)
-            sizes.append(out.size)
-        PHOTO[rel] = (full, small, sizes[0][0], sizes[0][1], sizes[1][0])
+        big = im.copy()
+        big.thumbnail((2000, 2000), Image.LANCZOS)
+        grid = []
+        for width in (800, 1600):
+            crop = cover(im, width)
+            if not grid or crop.size[0] > grid[-1][1]:   # small photos: one grid copy is enough
+                grid.append(save_photo(crop, photo_name(rel, has_alpha, f"-{width}"), has_alpha))
+        PHOTO[rel] = {"full": save_photo(big, full, has_alpha), "grid": grid}
 
 process_photos()
+PROJECTS = [p for p in PROJECTS if p["image"] in PHOTO]
 stop_on_errors()
 
 # ================================================================== layout
@@ -429,7 +493,8 @@ def jsonld():
              "telephone": f"+1-{digits[:3]}-{digits[3:6]}-{digits[6:]}", "email": EMAIL,
              "address": {"@type": "PostalAddress", "streetAddress": o["street"], "addressLocality": o["city"],
                          "addressRegion": o["state"], "postalCode": o["zip"], "addressCountry": "US"},
-             "areaServed": f"Florida {o['region']}" if o["state"].upper() in ("FL", "FLORIDA") else f"{o['region']}, {o['state']}"}
+             "areaServed": (o["region"] if "florida" in o["region"].lower() else f"Florida {o['region']}")
+                           if state_code(o["state"]) == "FL" else f"{o['region']}, {o['state']}"}
         if SITE_URL:
             d["url"] = SITE_URL + "/"
             d["image"] = SITE_URL + "/assets/img/logo.png"
@@ -437,7 +502,7 @@ def jsonld():
     data = {
         "@context": "https://schema.org", "@type": "Organization", "name": SITE_NAME,
         "legalName": LEGAL_NAME, "email": EMAIL,
-        "description": "Licensed & insured plumbing, electrical, remodeling, building inspection and trade work in Florida. Licenses "
+        "description": f"Licensed & insured plumbing, electrical, remodeling, building inspection and trade work in {STATE_NAMES}. Licenses "
                        + ", ".join(l["number"] for l in LICENSES) + ".",
         "department": [office(o) for o in OFFICES],
     }
@@ -447,13 +512,16 @@ def jsonld():
     return json.dumps(data, ensure_ascii=False).replace("<", "\\u003c")
 
 def head(b, title, desc, path="", schema=False):
+    """title/desc are HTML text: escape client text with e() before passing it. path=None: no canonical (404)."""
     t, d = attr(title), attr(desc)
     canon = ""
     if SITE_URL:
-        url = public_url(path)
-        canon = f"""
+        if path is not None:
+            url = public_url(path)
+            canon = f"""
   <link rel="canonical" href="{url}">
-  <meta property="og:url" content="{url}">
+  <meta property="og:url" content="{url}">"""
+        canon += f"""
   <meta property="og:image" content="{SITE_URL}/assets/img/og-image.jpg">
   <meta name="twitter:image" content="{SITE_URL}/assets/img/og-image.jpg">"""
     ld = f'\n  <script type="application/ld+json">{jsonld()}</script>' if schema else ""
@@ -466,7 +534,7 @@ def head(b, title, desc, path="", schema=False):
   <meta name="description" content="{d}">
   <meta name="theme-color" content="#07111f">
   <meta property="og:type" content="website">
-  <meta property="og:site_name" content="{attr(SITE_NAME)}">
+  <meta property="og:site_name" content="{e(SITE_NAME)}">
   <meta property="og:title" content="{t}">
   <meta property="og:description" content="{d}">
   <meta name="twitter:card" content="summary_large_image">{canon}
@@ -503,7 +571,7 @@ def header(b, active):
     dot = '<span class="dot"></span> '
     phones = "\n".join(
         f'        <a href="{o["tel"]}">{dot if i == 0 else ""}{e(o["region"])} <b>{e(o["phone"])}</b></a>'
-        for i, o in enumerate(OFFICES))
+        for i, o in enumerate(OFFICES[:2]))
     return f"""{announcement(b)}
   <div class="utility" role="complementary" aria-label="Contact information">
     <div class="utility__inner">
@@ -541,7 +609,7 @@ def header(b, active):
 
 def final_cta(b, title=None, text=None):
     title = hd(CTA_HEADING) if title is None else title
-    text = e(CTA_LEAD) if text is None else text
+    text = rich(CTA_LEAD) if text is None else text
     cards = "\n".join(
         f'        <a class="contact-card" href="{o["tel"]}"><i class="ic fa-solid fa-phone"></i><div><small>{e(o["region"])}</small><strong>{e(o["phone"])}</strong></div><i class="go fa-solid fa-arrow-right"></i></a>'
         for o in OFFICES)
@@ -723,12 +791,15 @@ def gallery_section(category, num, b=""):
         return ""
     figs = []
     for i, p in enumerate(items):
-        full, small, w_, h_, sw = PHOTO[p["image"]]
-        srcset = f' srcset="{b}{quote(small)} {sw}w, {b}{quote(full)} {w_}w" sizes="(max-width: 720px) 100vw, 400px"' if sw < w_ else ""
+        ph = PHOTO[p["image"]]
+        (src, w_, h_), grid = ph["grid"][-1], ph["grid"]
+        srcset = (f' srcset="{", ".join(f"{b}{quote(g[0])} {g[1]}w" for g in grid)}"'
+                  ' sizes="(max-width: 720px) 100vw, (max-width: 1024px) 50vw, 400px"') if len(grid) > 1 else ""
+        full, fw, fh = ph["full"]
         cap = e(p["title"])
         figs.append(f"""
-        <figure class="gallery__item reveal{' reveal-d1' if i % 3 == 1 else ' reveal-d2' if i % 3 == 2 else ''}" data-lightbox data-title="{cap}" data-text="" role="button" tabindex="0" aria-label="Enlarge photo: {cap}">
-          <div class="dg-frame"><img src="{b}{quote(full)}" alt="{cap}" width="{w_}" height="{h_}" loading="lazy"{srcset}></div>
+        <figure class="gallery__item reveal{' reveal-d1' if i % 3 == 1 else ' reveal-d2' if i % 3 == 2 else ''}" data-lightbox data-title="{cap}" data-text="" data-full="{b}{quote(full)}" data-full-size="{fw}x{fh}" role="button" tabindex="0" aria-label="Enlarge photo: {cap}">
+          <div class="dg-frame"><img src="{b}{quote(src)}" alt="{cap}" width="{w_}" height="{h_}" loading="lazy"{srcset}></div>
           <figcaption>{cap}</figcaption>
         </figure>""")
     intro = f'<p class="reveal reveal-d1">{e(GALLERY_INTRO)}</p>' if GALLERY_INTRO else ""
@@ -852,7 +923,7 @@ def map_src(o):
     return "https://maps.google.com/maps?q=" + quote_plus(q) + "&amp;z=13&amp;output=embed"
 
 locations_html = "\n".join(f"""        <div class="location reveal{DELAYS[i % 2]}">
-          <div class="location__map"><iframe title="Map — {attr(o["city"])} office" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="{map_src(o)}"></iframe></div>
+          <div class="location__map"><iframe title="Map — {e(o["city"])} office" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="{map_src(o)}"></iframe></div>
           <div class="location__body"><div><small>{e(o["region"])}</small><h3>{e(o["city"])}</h3><p>{e(o["street"])}, {e(o["city"])}, {e(o["state"])} {e(o["zip"])}</p></div><a class="btn btn--dark btn--sm" href="{o["tel"]}"><i class="fa-solid fa-phone"></i> {e(o["phone"])}</a></div>
         </div>""" for i, o in enumerate(OFFICES))
 
@@ -1085,12 +1156,12 @@ repiping_pins = len(POINTS.get("repiping", []))
 division_page("plumbing.html", "plumbing.html", "Plumbing Division", "plumbing",
     "dg-repiping.jpg", f"Whole-house plumbing &mdash; {repiping_pins} leak points" if repiping_pins else "Whole-house plumbing", False, PLUMBING, "plumbing",
     None, "Plumbing Services | PSL Plumbing & Drains",
-    "Leak detection, drain clearing, water heaters, re-piping, sewer lines, toilets and faucets. Licensed & insured plumbers serving Florida's Treasure Coast and Gold Coast.")
+    e(f"Leak detection, drain clearing, water heaters, re-piping, sewer lines, toilets and faucets. Licensed & insured plumbers serving {AREA}."))
 
 division_page("electrical.html", "electrical.html", "Electrical Division", "electrical",
     "crop-panel.jpg", "Circuit breaker panel &mdash; fault points", True, ELECTRICAL, "electrical",
     None, "Electrical Services | Triphase Electrical",
-    "Breaker panel corrections, circuits, lighting, ceiling fans, receptacles, generators and thermal-imaging diagnostics by licensed electricians in Florida.")
+    e(f"Breaker panel corrections, circuits, lighting, ceiling fans, receptacles, generators and thermal-imaging diagnostics by licensed electricians in {STATE_NAMES}."))
 
 # ================================================================== SERVICE PAGES
 def service_page(division, s, siblings):
@@ -1172,14 +1243,12 @@ def service_page(division, s, siblings):
   </main>
 """
     short_plain = plain(unescape(short))
-    states = sorted({o["state"] for o in OFFICES})
-    cities = " & ".join(o["city"] for o in OFFICES) + (f", {states[0]}" if len(states) == 1 else "")
-    desc = f"{plain_title} in {cities}. {short_plain} Licensed & insured {div_name.lower()} contractors. Free on-site evaluation."
+    desc = f"{plain_title} in {CITIES}. {short_plain} Licensed & insured {div_name.lower()} contractors. Free on-site evaluation."
     if len(desc) > 160:
-        desc = f"{plain_title} in {cities}. {short_plain} Free on-site evaluation."
+        desc = f"{plain_title} in {CITIES}. {short_plain} Free on-site evaluation."
     if len(desc) > 160:
         desc = desc[:157].rsplit(" ", 1)[0] + "…"
-    html = head(b, f"{plain_title} | {div_brand.replace('&amp;', '&')}", desc, f"services/{division}-{slug}.html") + header(b, f"{division}.html") + body + footer(b)
+    html = head(b, f"{title} | {div_brand}", e(desc), f"services/{division}-{slug}.html") + header(b, f"{division}.html") + body + footer(b)
     write(f"services/{division}-{slug}.html", html)
 
 for s in PLUMBING: service_page("plumbing", s, PLUMBING)
@@ -1251,7 +1320,7 @@ building = f"""
   </main>
 """
 write("building.html", head("", "Building & Remodeling | U.S. Construction",
-      "Remodeling, building inspections and trade work by licensed & insured builders on Florida's Treasure Coast and Gold Coast. Free on-site evaluations.", "building.html") + header("", "building.html") + building + footer(""))
+      e(f"Remodeling, building inspections and trade work by licensed & insured builders on {AREA}. Free on-site evaluations."), "building.html") + header("", "building.html") + building + footer(""))
 
 # ================================================================== COMMERCIAL
 CW = f"{P} → commercial"
@@ -1331,8 +1400,7 @@ stxt = section(PAGES_TXT, "schedule", P)
 info_phones = "\n".join(
     f'          <li><i class="fa-solid fa-phone"></i><div><small>{e(o["region"])}</small><a href="{o["tel"]}">{e(o["phone"])}</a></div></li>'
     for o in OFFICES)
-states = sorted({o["state"] for o in OFFICES})
-offices_line = " &amp; ".join(e(o["city"]) for o in OFFICES) + (f", {e(states[0])}" if len(states) == 1 else "")
+offices_line = e(CITIES)
 call_links = " or ".join(f'<a href="{o["tel"]}">{e(o["phone"])}</a>' for o in OFFICES)
 schedule = f"""
   <main>
@@ -1346,7 +1414,7 @@ schedule = f"""
         <ul class="info-list reveal reveal-d3">
 {info_phones}
           <li><i class="fa-solid fa-envelope"></i><div><small>Email</small><a href="mailto:{e(EMAIL)}">{e(EMAIL)}</a></div></li>
-          <li><i class="fa-solid fa-location-dot"></i><div><small>Offices</small><strong>{offices_line}</strong></div></li>
+          <li><i class="fa-solid fa-location-dot"></i><div><small>Office{"s" if len(OFFICES) > 1 else ""}</small><strong>{offices_line}</strong></div></li>
         </ul>
       </div>
       <div class="form-card reveal reveal-d1">
@@ -1397,7 +1465,7 @@ write("schedule.html", head("", "Schedule a Free Evaluation | U.S. Construction 
 
 # ================================================================== HOME (written after the division pages so all data is validated)
 write("index.html", head("", "U.S. Construction & Plumbing Authority | Florida Contractor",
-      "Licensed & insured plumbing, electrical, remodeling, building inspections and trade work on Florida's Treasure Coast and Gold Coast. Free on-site evaluations.",
+      e(f"Licensed & insured plumbing, electrical, remodeling, building inspections and trade work on {AREA}. Free on-site evaluations."),
       "index.html", schema=True)
       + header("", "index.html") + home + footer(""))
 
@@ -1426,7 +1494,7 @@ not_found = f"""
   </main>
 """
 # 404 is served for any missing path, so it uses root-absolute URLs.
-nf = head("/", "Page Not Found | U.S. Construction & Plumbing Authority", "The page you were looking for could not be found.") \
+nf = head("/", "Page Not Found | U.S. Construction & Plumbing Authority", "The page you were looking for could not be found.", None) \
      .replace("<head>", '<head>\n  <meta name="robots" content="noindex">') + header("/", "") + not_found + footer("/")
 write("404.html", nf)
 PAGES.remove("404.html")
@@ -1483,21 +1551,42 @@ def build_icons():
     for extra in re.findall(r"content:\s*'\\(f[0-9a-f]{3})'", open(os.path.join(OUT, "assets", "css", "styles.css"), encoding="utf-8").read()):
         codes.add(int(extra, 16))
     from fontTools import subset
+    names = {}
     for style, weight in (("solid", 900), ("regular", 400)):
         opts = subset.Options(); opts.flavor = "woff2"; opts.layout_features = ["*"]
         font = subset.load_font(os.path.join(SRC, "fontawesome", "webfonts", f"fa-{style}-{weight}.woff2"), opts)
         sub = subset.Subsetter(opts); sub.populate(unicodes=codes); sub.subset(font)
-        subset.save_font(font, os.path.join(OUT, "assets", "fonts", f"fa-{style}-subset.woff2"), opts)
+        tmp = os.path.join(OUT, "assets", "fonts", f"fa-{style}-subset.woff2")
+        subset.save_font(font, tmp, opts)
+        # Fonts are cached as immutable, so the file name changes whenever the icon set changes
+        names[style] = f"fa-{style}-subset.{file_hash(tmp)}.woff2"
+        os.rename(tmp, os.path.join(OUT, "assets", "fonts", names[style]))
     css = ("/* Font Awesome Free 6.5.1 subset (icons: CC BY 4.0, fonts: SIL OFL 1.1, code: MIT). Generated by _source/build.py */\n"
-           "@font-face{font-family:\"Font Awesome 6 Free\";font-style:normal;font-weight:900;font-display:block;src:url(../fonts/fa-solid-subset.woff2) format(\"woff2\")}\n"
-           "@font-face{font-family:\"Font Awesome 6 Free\";font-style:normal;font-weight:400;font-display:block;src:url(../fonts/fa-regular-subset.woff2) format(\"woff2\")}\n"
+           f"@font-face{{font-family:\"Font Awesome 6 Free\";font-style:normal;font-weight:900;font-display:block;src:url(../fonts/{names['solid']}) format(\"woff2\")}}\n"
+           f"@font-face{{font-family:\"Font Awesome 6 Free\";font-style:normal;font-weight:400;font-display:block;src:url(../fonts/{names['regular']}) format(\"woff2\")}}\n"
            ".fa-solid,.fa-regular{-moz-osx-font-smoothing:grayscale;-webkit-font-smoothing:antialiased;display:inline-block;font-style:normal;font-variant:normal;line-height:1;text-rendering:auto;font-family:\"Font Awesome 6 Free\"}\n"
            ".fa-solid{font-weight:900}.fa-regular{font-weight:400}\n" + "".join(rules) + "\n")
     with open(os.path.join(OUT, "assets", "css", "icons.css"), "w", encoding="utf-8") as f:
         f.write(css)
     return len(rules)
 
+def file_hash(path):
+    import hashlib
+    with open(path, "rb") as f:
+        return hashlib.sha1(f.read()).hexdigest()[:10]
+
 n_icons = build_icons()
+
+# CSS/JS are cached for a day: link them with a content hash so returning visitors get changes right away
+versions = {f"assets/{a}": file_hash(os.path.join(OUT, "assets", a)) for a in ("css/icons.css", "css/styles.css", "js/main.js")}
+for page in PAGES + ["404.html"]:
+    path = os.path.join(OUT, page)
+    with open(path, encoding="utf-8") as f:
+        html = f.read()
+    for asset, h in versions.items():
+        html = html.replace(f'{asset}"', f'{asset}?v={h}"')
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(html)
 stop_on_errors()
 shutil.rmtree(FINAL_OUT, ignore_errors=True)
 os.rename(OUT, FINAL_OUT)

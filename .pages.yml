@@ -12,6 +12,8 @@ media:
   rename: safe
 content:
 - name: site
+  operations:
+    delete: false
   label: Datos de la empresa
   type: file
   path: content/site.yml
@@ -21,16 +23,26 @@ content:
   - name: company_name
     label: Nombre de la empresa
     type: string
+    description: Se usa en Google y en la cita de «Sobre nosotros». El logo, el encabezado y los títulos de las pestañas los cambia tu desarrollador.
     required: true
+    pattern:
+      regex: \S
+      message: Escribe algo (no solo espacios)
   - name: legal_name
     label: Razón social
     type: string
     description: Aparece en el aviso de derechos al final de la página.
     required: true
+    pattern:
+      regex: \S
+      message: Escribe algo (no solo espacios)
   - name: about_line
     label: Frase del pie de página
     type: text
     required: true
+    pattern:
+      regex: \S
+      message: Escribe algo (no solo espacios)
   - name: email
     label: Correo de contacto
     type: string
@@ -52,6 +64,9 @@ content:
       type: string
       description: 'Ejemplo: Treasure Coast'
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: phone
       label: Teléfono
       type: string
@@ -64,19 +79,31 @@ content:
       label: Dirección
       type: string
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: city
       label: Ciudad
       type: string
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: state
       label: Estado
       type: string
       description: 'Ejemplo: FL'
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: zip
       label: Código postal
       type: string
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     description: La primera oficina es el teléfono principal de la web.
     required: true
   - name: licenses
@@ -106,10 +133,16 @@ content:
       type: string
       description: 'Ejemplo: Building'
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: number
       label: Número de licencia
       type: string
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     required: true
   - name: announcement
     label: Aviso superior (barra roja)
@@ -144,12 +177,21 @@ content:
       type: string
       description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: lead
       label: Texto
       type: text
+      description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     required: true
 - name: home
+  operations:
+    delete: false
   label: Página de inicio
   type: file
   path: content/home.yml
@@ -164,25 +206,40 @@ content:
       type: string
       description: 'Ejemplo: Free'
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: badge_text
       label: Texto junto a la etiqueta
       type: string
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: heading
       label: Título principal
       type: string
       description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: trades
       label: Oficios (fila bajo el título)
       type: string
       list: true
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: subtitle
       label: Subtítulo
       type: text
       description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     required: true
   - name: stats
     label: Cifras
@@ -197,6 +254,9 @@ content:
       type: string
       description: 'Ejemplo: 35 o $0'
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: plus
       label: Mostrar un + después del número
       type: boolean
@@ -205,6 +265,9 @@ content:
       label: Descripción
       type: string
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     required: true
   - name: divisions
     label: 01 · Divisiones
@@ -214,16 +277,25 @@ content:
       label: Etiqueta pequeña (sobre el título)
       type: string
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: heading
       label: Título
       type: string
       description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: intro
       label: Texto
       type: text
       description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: plumbing
       label: Tarjeta de plomería
       type: object
@@ -232,15 +304,24 @@ content:
         label: Título
         type: string
         required: true
+        pattern:
+          regex: \S
+          message: Escribe algo (no solo espacios)
       - name: text
         label: Texto
         type: text
         required: true
+        pattern:
+          regex: \S
+          message: Escribe algo (no solo espacios)
       - name: bullets
         label: Puntos de la lista
         type: string
         list: true
         required: true
+        pattern:
+          regex: \S
+          message: Escribe algo (no solo espacios)
       required: true
     - name: electrical
       label: Tarjeta de electricidad
@@ -250,15 +331,24 @@ content:
         label: Título
         type: string
         required: true
+        pattern:
+          regex: \S
+          message: Escribe algo (no solo espacios)
       - name: text
         label: Texto
         type: text
         required: true
+        pattern:
+          regex: \S
+          message: Escribe algo (no solo espacios)
       - name: bullets
         label: Puntos de la lista
         type: string
         list: true
         required: true
+        pattern:
+          regex: \S
+          message: Escribe algo (no solo espacios)
       required: true
     - name: building
       label: Tarjeta de construcción
@@ -268,15 +358,24 @@ content:
         label: Título
         type: string
         required: true
+        pattern:
+          regex: \S
+          message: Escribe algo (no solo espacios)
       - name: text
         label: Texto
         type: text
         required: true
+        pattern:
+          regex: \S
+          message: Escribe algo (no solo espacios)
       - name: bullets
         label: Puntos de la lista
         type: string
         list: true
         required: true
+        pattern:
+          regex: \S
+          message: Escribe algo (no solo espacios)
       required: true
     required: true
   - name: thermal
@@ -287,16 +386,25 @@ content:
       label: Etiqueta pequeña (sobre el título)
       type: string
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: heading
       label: Título
       type: string
       description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: lead
       label: Texto
       type: text
       description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: points
       label: Puntos
       type: object
@@ -309,10 +417,16 @@ content:
         label: Título
         type: string
         required: true
+        pattern:
+          regex: \S
+          message: Escribe algo (no solo espacios)
       - name: text
         label: Texto
         type: text
         required: true
+        pattern:
+          regex: \S
+          message: Escribe algo (no solo espacios)
       required: true
     required: true
   - name: why
@@ -323,16 +437,25 @@ content:
       label: Etiqueta pequeña (sobre el título)
       type: string
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: heading
       label: Título
       type: string
       description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: lead
       label: Texto
       type: text
       description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: items
       label: Razones
       type: object
@@ -345,10 +468,16 @@ content:
         label: Título
         type: string
         required: true
+        pattern:
+          regex: \S
+          message: Escribe algo (no solo espacios)
       - name: text
         label: Texto
         type: text
         required: true
+        pattern:
+          regex: \S
+          message: Escribe algo (no solo espacios)
       required: true
     required: true
   - name: steps
@@ -359,16 +488,25 @@ content:
       label: Etiqueta pequeña (sobre el título)
       type: string
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: heading
       label: Título
       type: string
       description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: lead
       label: Texto
       type: text
       description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: items
       label: Pasos
       type: object
@@ -381,10 +519,16 @@ content:
         label: Título
         type: string
         required: true
+        pattern:
+          regex: \S
+          message: Escribe algo (no solo espacios)
       - name: text
         label: Texto
         type: text
         required: true
+        pattern:
+          regex: \S
+          message: Escribe algo (no solo espacios)
       required: true
     required: true
   - name: diagnostics
@@ -395,16 +539,25 @@ content:
       label: Etiqueta pequeña (sobre el título)
       type: string
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: heading
       label: Título
       type: string
       description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: lead
       label: Texto
       type: text
       description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     required: true
   - name: commercial
     label: 06 · Clientes comerciales
@@ -414,16 +567,25 @@ content:
       label: Etiqueta pequeña (sobre el título)
       type: string
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: heading
       label: Título
       type: string
       description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: lead
       label: Texto
       type: text
       description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: benefits
       label: Beneficios
       type: object
@@ -436,10 +598,16 @@ content:
         label: Título
         type: string
         required: true
+        pattern:
+          regex: \S
+          message: Escribe algo (no solo espacios)
       - name: text
         label: Texto
         type: text
         required: true
+        pattern:
+          regex: \S
+          message: Escribe algo (no solo espacios)
       required: true
     required: true
   - name: about
@@ -450,25 +618,40 @@ content:
       label: Etiqueta pequeña (sobre el título)
       type: string
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: heading
       label: Título
       type: string
       description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: paragraphs
       label: Párrafos
       type: text
       list: true
       description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: corporate_line
       label: Línea corporativa
       type: string
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: quote
       label: Frase destacada
       type: text
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     required: true
   - name: areas
     label: Zonas de servicio
@@ -478,19 +661,30 @@ content:
       label: Etiqueta pequeña (sobre el título)
       type: string
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: heading
       label: Título
       type: string
       description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: lead
       label: Texto
       type: text
       description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     description: Las direcciones y teléfonos se editan en «Datos de la empresa».
     required: true
 - name: gallery
+  operations:
+    delete: false
   label: Fotos de proyectos
   type: file
   path: content/gallery.yml
@@ -502,6 +696,9 @@ content:
     type: string
     description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
     required: true
+    pattern:
+      regex: \S
+      message: Escribe algo (no solo espacios)
   - name: intro
     label: Texto de la sección
     type: text
@@ -523,6 +720,9 @@ content:
       type: string
       description: 'Ejemplo: Kitchen re-piping in Port St. Lucie'
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: category
       label: Mostrar en
       type: select
@@ -567,27 +767,42 @@ content:
     label: Nombre del servicio
     type: string
     required: true
+    pattern:
+      regex: \S
+      message: Escribe algo (no solo espacios)
   - name: summary
     label: Resumen corto
     type: string
     description: Aparece en la tarjeta del servicio.
     required: true
+    pattern:
+      regex: \S
+      message: Escribe algo (no solo espacios)
   - name: intro
     label: Introducción
     type: text
     description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
     required: true
+    pattern:
+      regex: \S
+      message: Escribe algo (no solo espacios)
   - name: options
     label: Opciones del servicio
     type: string
     list: true
     description: Lo que incluye este servicio.
     required: true
+    pattern:
+      regex: \S
+      message: Escribe algo (no solo espacios)
   - name: reasons
     label: Razones para llamar
     type: string
     list: true
     required: true
+    pattern:
+      regex: \S
+      message: Escribe algo (no solo espacios)
   - name: icon
     label: Ícono
     type: select
@@ -719,7 +934,7 @@ content:
     default: 50
     description: Los números más bajos aparecen primero.
     options:
-      min: 0
+      min: 1
       max: 999
   - name: visible
     label: Mostrar en la web
@@ -752,27 +967,42 @@ content:
     label: Nombre del servicio
     type: string
     required: true
+    pattern:
+      regex: \S
+      message: Escribe algo (no solo espacios)
   - name: summary
     label: Resumen corto
     type: string
     description: Aparece en la tarjeta del servicio.
     required: true
+    pattern:
+      regex: \S
+      message: Escribe algo (no solo espacios)
   - name: intro
     label: Introducción
     type: text
     description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
     required: true
+    pattern:
+      regex: \S
+      message: Escribe algo (no solo espacios)
   - name: options
     label: Opciones del servicio
     type: string
     list: true
     description: Lo que incluye este servicio.
     required: true
+    pattern:
+      regex: \S
+      message: Escribe algo (no solo espacios)
   - name: reasons
     label: Razones para llamar
     type: string
     list: true
     required: true
+    pattern:
+      regex: \S
+      message: Escribe algo (no solo espacios)
   - name: icon
     label: Ícono
     type: select
@@ -904,13 +1134,15 @@ content:
     default: 50
     description: Los números más bajos aparecen primero.
     options:
-      min: 0
+      min: 1
       max: 999
   - name: visible
     label: Mostrar en la web
     type: boolean
     default: true
 - name: pages
+  operations:
+    delete: false
   label: Otras páginas
   type: file
   path: content/pages.yml
@@ -926,16 +1158,25 @@ content:
       type: string
       description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: lead
       label: Texto
       type: text
       description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: cta_heading
       label: Título del llamado final
       type: string
       description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     required: true
   - name: electrical
     label: Página de electricidad
@@ -946,16 +1187,25 @@ content:
       type: string
       description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: lead
       label: Texto
       type: text
       description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: cta_heading
       label: Título del llamado final
       type: string
       description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     required: true
   - name: building
     label: Página de construcción
@@ -966,21 +1216,33 @@ content:
       type: string
       description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: lead
       label: Texto
       type: text
       description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: services_heading
       label: Título de servicios
       type: string
       description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: services_intro
       label: Texto de servicios
       type: text
       description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: services
       label: Servicios
       type: object
@@ -1088,21 +1350,33 @@ content:
         label: Título
         type: string
         required: true
+        pattern:
+          regex: \S
+          message: Escribe algo (no solo espacios)
       - name: text
         label: Texto
         type: text
         required: true
+        pattern:
+          regex: \S
+          message: Escribe algo (no solo espacios)
       required: true
     - name: inspections_heading
       label: Título de inspecciones
       type: string
       description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: inspections_lead
       label: Texto de inspecciones
       type: text
       description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: inspections
       label: Beneficios de las inspecciones
       type: object
@@ -1115,16 +1389,25 @@ content:
         label: Título
         type: string
         required: true
+        pattern:
+          regex: \S
+          message: Escribe algo (no solo espacios)
       - name: text
         label: Texto
         type: text
         required: true
+        pattern:
+          regex: \S
+          message: Escribe algo (no solo espacios)
       required: true
     - name: cta_heading
       label: Título del llamado final
       type: string
       description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     required: true
   - name: commercial
     label: Página comercial
@@ -1135,21 +1418,33 @@ content:
       type: string
       description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: lead
       label: Texto
       type: text
       description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: proactive_heading
       label: Título «planifica»
       type: string
       description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: proactive_lead
       label: Texto «planifica»
       type: text
       description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: proactive
       label: Puntos «planifica»
       type: object
@@ -1162,16 +1457,25 @@ content:
         label: Título
         type: string
         required: true
+        pattern:
+          regex: \S
+          message: Escribe algo (no solo espacios)
       - name: text
         label: Texto
         type: text
         required: true
+        pattern:
+          regex: \S
+          message: Escribe algo (no solo espacios)
       required: true
     - name: risk_heading
       label: Título «reduce riesgos»
       type: string
       description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: risks
       label: Riesgos que se reducen
       type: object
@@ -1184,21 +1488,33 @@ content:
         label: Título
         type: string
         required: true
+        pattern:
+          regex: \S
+          message: Escribe algo (no solo espacios)
       - name: text
         label: Texto
         type: text
         required: true
+        pattern:
+          regex: \S
+          message: Escribe algo (no solo espacios)
       required: true
     - name: cta_heading
       label: Título del llamado final
       type: string
       description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: cta_lead
       label: Texto del llamado final
       type: text
       description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     required: true
   - name: schedule
     label: Página de agenda (formulario)
@@ -1209,11 +1525,17 @@ content:
       type: string
       description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: lead
       label: Texto
       type: text
       description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     required: true
 - name: diagrams
   label: Diagramas
@@ -1225,20 +1547,31 @@ content:
     type: file
     path: content/diagrams/water-heater.yml
     format: yaml
+    operations:
+      delete: false
     fields:
     - name: title
       label: Título
       type: string
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: description
       label: Descripción
       type: text
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: points
       label: Nombres de los puntos numerados
       type: string
       description: Uno por cada número del dibujo, en orden (exactamente 21).
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
       list:
         min: 21
         max: 21
@@ -1248,20 +1581,31 @@ content:
     type: file
     path: content/diagrams/bathtub.yml
     format: yaml
+    operations:
+      delete: false
     fields:
     - name: title
       label: Título
       type: string
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: description
       label: Descripción
       type: text
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: points
       label: Nombres de los puntos numerados
       type: string
       description: Uno por cada número del dibujo, en orden (exactamente 20).
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
       list:
         min: 20
         max: 20
@@ -1271,20 +1615,31 @@ content:
     type: file
     path: content/diagrams/shower.yml
     format: yaml
+    operations:
+      delete: false
     fields:
     - name: title
       label: Título
       type: string
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: description
       label: Descripción
       type: text
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: points
       label: Nombres de los puntos numerados
       type: string
       description: Uno por cada número del dibujo, en orden (exactamente 21).
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
       list:
         min: 21
         max: 21
@@ -1294,20 +1649,31 @@ content:
     type: file
     path: content/diagrams/kitchen.yml
     format: yaml
+    operations:
+      delete: false
     fields:
     - name: title
       label: Título
       type: string
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: description
       label: Descripción
       type: text
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: points
       label: Nombres de los puntos numerados
       type: string
       description: Uno por cada número del dibujo, en orden (exactamente 23).
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
       list:
         min: 23
         max: 23
@@ -1317,20 +1683,31 @@ content:
     type: file
     path: content/diagrams/repiping.yml
     format: yaml
+    operations:
+      delete: false
     fields:
     - name: title
       label: Título
       type: string
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: description
       label: Descripción
       type: text
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: points
       label: Nombres de los puntos numerados
       type: string
       description: Uno por cada número del dibujo, en orden (exactamente 22).
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
       list:
         min: 22
         max: 22
@@ -1340,70 +1717,110 @@ content:
     type: file
     path: content/diagrams/sewer.yml
     format: yaml
+    operations:
+      delete: false
     fields:
     - name: title
       label: Título
       type: string
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: description
       label: Descripción
       type: text
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
   - name: diagram-panel
     label: Panel de breakers
     type: file
     path: content/diagrams/panel.yml
     format: yaml
+    operations:
+      delete: false
     fields:
     - name: title
       label: Título
       type: string
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: description
       label: Descripción
       type: text
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
   - name: diagram-disconnect
     label: Interruptor de desconexión
     type: file
     path: content/diagrams/disconnect.yml
     format: yaml
+    operations:
+      delete: false
     fields:
     - name: title
       label: Título
       type: string
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: description
       label: Descripción
       type: text
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
   - name: diagram-fixtures
     label: Lámparas y ventiladores de techo
     type: file
     path: content/diagrams/fixtures.yml
     format: yaml
+    operations:
+      delete: false
     fields:
     - name: title
       label: Título
       type: string
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: description
       label: Descripción
       type: text
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
   - name: diagram-receptacles
     label: Tomacorrientes e interruptores
     type: file
     path: content/diagrams/receptacles.yml
     format: yaml
+    operations:
+      delete: false
     fields:
     - name: title
       label: Título
       type: string
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
     - name: description
       label: Descripción
       type: text
       required: true
+      pattern:
+        regex: \S
+        message: Escribe algo (no solo espacios)
 settings:
   config: false

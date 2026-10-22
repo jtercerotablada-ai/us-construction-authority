@@ -269,6 +269,15 @@
       stage.innerHTML = '';
       stage.appendChild(frag);
       var img = stage.querySelector('img');
+      var full = trigger.getAttribute('data-full');
+      if (img && full) {
+        // gallery: the grid shows a 4:3 crop, the lightbox shows the whole photo
+        var size = (trigger.getAttribute('data-full-size') || '').split('x');
+        img.removeAttribute('srcset');
+        img.removeAttribute('sizes');
+        img.src = full;
+        if (size.length === 2) { img.width = +size[0]; img.height = +size[1]; }
+      }
       if (img) {
         img.removeAttribute('loading');
         if (img.hasAttribute('srcset')) img.setAttribute('sizes', '100vw');
