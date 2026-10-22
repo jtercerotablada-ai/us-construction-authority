@@ -447,7 +447,7 @@ em { font-family: var(--serif); font-style: italic; font-weight: 400; }
 
 /* ---------- Footer ---------- */
 .footer { background: var(--navy-990); color: var(--text-dim); padding: 96px 0 30px; font-size: .92rem; }
-.footer__top { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 48px; padding-bottom: 64px; border-bottom: 1px solid var(--line-dark); }
+.footer__top { display: grid; grid-template-columns: 1.5fr 1fr repeat(var(--offices, 2), 1fr); gap: 48px; padding-bottom: 64px; border-bottom: 1px solid var(--line-dark); }
 .footer__brand img { width: 96px; margin-bottom: 20px; }
 .footer__brand p { max-width: 360px; }
 .footer__brand .btn { margin-top: 24px; }

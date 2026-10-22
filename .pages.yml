@@ -148,6 +148,7 @@ content:
       label: Texto
       type: text
       required: true
+    required: true
 - name: home
   label: Página de inicio
   type: file
@@ -182,6 +183,7 @@ content:
       type: text
       description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
       required: true
+    required: true
   - name: stats
     label: Cifras
     type: object
@@ -239,6 +241,7 @@ content:
         type: string
         list: true
         required: true
+      required: true
     - name: electrical
       label: Tarjeta de electricidad
       type: object
@@ -256,6 +259,7 @@ content:
         type: string
         list: true
         required: true
+      required: true
     - name: building
       label: Tarjeta de construcción
       type: object
@@ -273,6 +277,8 @@ content:
         type: string
         list: true
         required: true
+      required: true
+    required: true
   - name: thermal
     label: 02 · Termografía infrarroja
     type: object
@@ -308,6 +314,7 @@ content:
         type: text
         required: true
       required: true
+    required: true
   - name: why
     label: 03 · Por qué elegirnos
     type: object
@@ -343,6 +350,7 @@ content:
         type: text
         required: true
       required: true
+    required: true
   - name: steps
     label: 04 · Cómo funciona
     type: object
@@ -378,6 +386,7 @@ content:
         type: text
         required: true
       required: true
+    required: true
   - name: diagnostics
     label: 05 · Diagramas
     type: object
@@ -396,6 +405,7 @@ content:
       type: text
       description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
       required: true
+    required: true
   - name: commercial
     label: 06 · Clientes comerciales
     type: object
@@ -431,6 +441,7 @@ content:
         type: text
         required: true
       required: true
+    required: true
   - name: about
     label: 07 · Sobre nosotros
     type: object
@@ -458,6 +469,7 @@ content:
       label: Frase destacada
       type: text
       required: true
+    required: true
   - name: areas
     label: Zonas de servicio
     type: object
@@ -477,6 +489,7 @@ content:
       description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
       required: true
     description: Las direcciones y teléfonos se editan en «Datos de la empresa».
+    required: true
 - name: gallery
   label: Fotos de proyectos
   type: file
@@ -534,6 +547,9 @@ content:
   format: yaml
   description: Cada servicio tiene su propia página. Desmarca «Mostrar en la web» para ocultarlo sin borrarlo.
   filename: '{fields.title}.yml'
+  subfolders: false
+  operations:
+    rename: false
   view:
     fields:
     - title
@@ -716,6 +732,9 @@ content:
   format: yaml
   description: Cada servicio tiene su propia página. Desmarca «Mostrar en la web» para ocultarlo sin borrarlo.
   filename: '{fields.title}.yml'
+  subfolders: false
+  operations:
+    rename: false
   view:
     fields:
     - title
@@ -917,6 +936,7 @@ content:
       type: string
       description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
       required: true
+    required: true
   - name: electrical
     label: Página de electricidad
     type: object
@@ -936,6 +956,7 @@ content:
       type: string
       description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
       required: true
+    required: true
   - name: building
     label: Página de construcción
     type: object
@@ -1104,6 +1125,7 @@ content:
       type: string
       description: Escribe entre *asteriscos* las palabras que quieres en rojo e itálica.
       required: true
+    required: true
   - name: commercial
     label: Página comercial
     type: object
@@ -1177,6 +1199,7 @@ content:
       type: text
       description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
       required: true
+    required: true
   - name: schedule
     label: Página de agenda (formulario)
     type: object
@@ -1191,6 +1214,7 @@ content:
       type: text
       description: Usa **doble asterisco** para negrita y *un asterisco* para itálica.
       required: true
+    required: true
 - name: diagrams
   label: Diagramas
   type: group

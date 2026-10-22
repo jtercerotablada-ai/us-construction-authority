@@ -23,6 +23,15 @@ SRC = os.path.join(ROOT, "_source")
 CONTENT = os.path.join(ROOT, "content")
 OUT = os.path.abspath(os.environ.get("OUT_DIR") or os.path.join(ROOT, "dist"))
 UPLOADS = "assets/img/uploads"          # client photo uploads (Pages CMS media folder)
+PHOTOS = "assets/img/projects"          # where the resized gallery photos are published
+
+def _inside(path, parent):
+    return path == parent or path.startswith(parent.rstrip(os.sep) + os.sep)
+
+_out = os.path.realpath(OUT)
+if _inside(os.path.realpath(ROOT), _out) or any(
+        _inside(_out, os.path.realpath(os.path.join(ROOT, d))) for d in ("content", "_source", "assets", ".git")):
+    sys.exit(f"OUT_DIR={OUT} would overwrite the project; use a separate folder such as dist/.")
 
 # Production URL (no trailing slash). Leave empty until the domain is confirmed;
 # canonical, og:url, absolute og:image and sitemap.xml are emitted only when set.
@@ -65,7 +74,7 @@ class Loader(yaml.SafeLoader):
     """YAML 1.2 core schema, like the files Pages CMS writes: Yes/No/On/Off and 8:30 stay text."""
 
 Loader.yaml_implicit_resolvers = {
-    ch: [r for r in rs if r[0].rsplit(":", 1)[1] not in ("bool", "int", "float", "timestamp", "value")]
+    ch: [r for r in rs if r[0].rsplit(":", 1)[1] not in ("bool", "int", "float", "timestamp", "value", "merge")]
     for ch, rs in yaml.SafeLoader.yaml_implicit_resolvers.items()}
 Loader.add_implicit_resolver("tag:yaml.org,2002:bool", re.compile(r"^(?:true|True|TRUE|false|False|FALSE)$"), list("tTfF"))
 Loader.add_implicit_resolver("tag:yaml.org,2002:int", re.compile(r"^(?:[-+]?[0-9]+|0x[0-9a-fA-F]+)$"), list("-+0123456789"))
@@ -76,7 +85,9 @@ def load_yaml(rel):
     path = os.path.join(ROOT, rel)
     try:
         with open(path, encoding="utf-8") as f:
-            data = yaml.load(f, Loader=Loader)
+            text = f.read()
+        # U+2028/U+2029/U+0085 (pasted from Pages, Keynote, PDFs) are line breaks to PyYAML but not to Pages CMS
+        data = yaml.load(re.sub("[\u2028\u2029\x85]", " ", text), Loader=Loader)
     except FileNotFoundError:
         fail(f"{rel}: no existe el archivo.")
         return {}
@@ -156,9 +167,8 @@ def plain(s):
     return re.sub(r"\*+", "", str(s))
 
 def attr(text):
-    """Plain text safe for an HTML attribute (tags stripped, entities decoded then re-escaped)."""
-    t = unescape(re.sub(r"<[^>]+>", "", text))
-    return t.replace("&", "&amp;").replace('"', "&quot;")
+    """Text (plain or already escaped) safe for an HTML attribute or <title>."""
+    return escape(unescape(text), quote=True)
 
 def tel(phone, where):
     digits = re.sub(r"\D", "", phone)
@@ -239,8 +249,8 @@ LIC = " &middot; ".join(e(l["number"]) for l in LICENSES)
 
 ANN = get(SITE, "announcement", W, dict, required=False)
 ANNOUNCE = None
-if get(ANN, "show", W, bool):
-    a_text = get(ANN, "text", W + " → aviso")
+a_text = get(ANN, "text", W + " → aviso", required=False)
+if get(ANN, "show", W, bool) and a_text:
     a_link = safe_link(get(ANN, "link", W + " → aviso", required=False), W + " → aviso")
     ANNOUNCE = {"text": a_text, "link": a_link, "link_text": get(ANN, "link_text", W + " → aviso", required=False) or "Learn more"}
 
@@ -344,39 +354,69 @@ def img_size(name):
     with Image.open(os.path.join(OUT, "assets", "img", name)) as im:
         return im.size
 
-def upload_out(rel, suffix=""):
-    """Published path of a processed upload: photos become .jpg, PNG/WebP keep their format."""
-    base, ext = os.path.splitext(rel)
-    ext = ext.lower()
-    return base + suffix + (ext if ext in (".png", ".webp") else ".jpg")
+def photo_name(rel, has_alpha, suffix=""):
+    """uploads/cocina/Deck.JPG -> projects/cocina/Deck-jpg.jpg (the extension in the name keeps deck.jpg and
+    deck.png apart; "-800" can't be produced from any upload, so the small copies never collide)."""
+    base, ext = os.path.splitext(rel[len(UPLOADS) + 1:])
+    return f"{PHOTOS}/{base}-{ext[1:].lower()}{suffix}{'.png' if has_alpha else '.jpg'}"
 
-def process_uploads():
-    """Client photos: fix phone rotation, cap at 2000px, add an 800px variant for phones."""
-    src_dir = os.path.join(ROOT, UPLOADS)
-    if not os.path.isdir(src_dir):
-        return
-    os.makedirs(os.path.join(OUT, UPLOADS), exist_ok=True)
-    for name in sorted(os.listdir(src_dir)):
-        src = os.path.join(src_dir, name)
-        if name.startswith(".") or not os.path.isfile(src):
-            continue
-        rel = UPLOADS + "/" + name
+def to_srgb(im):
+    """Rotate per EXIF, convert to 8-bit sRGB (keeping transparency) so every browser shows the same colours."""
+    icc = im.info.get("icc_profile")
+    im = ImageOps.exif_transpose(im)
+    if im.mode in ("I;16", "I;16B", "I;16L", "I;16N", "I"):        # 16-bit greyscale: scale, don't clip
+        im = im.convert("I").point(lambda v: v / 256).convert("L")
+    has_alpha = im.mode in ("RGBA", "LA", "PA") or (im.mode == "P" and "transparency" in im.info)
+    if has_alpha:
+        im = im.convert("RGBA")
+        has_alpha = im.getchannel("A").getextrema()[0] < 255     # fully opaque PNGs become JPEGs
+    mode = "RGBA" if has_alpha else "RGB"
+    if icc:
         try:
-            with Image.open(src) as im:
-                im = ImageOps.exif_transpose(im)
-                fmt = {".png": "PNG", ".webp": "WEBP"}.get(os.path.splitext(name)[1].lower(), "JPEG")
-                im = im.convert("RGBA" if fmt != "JPEG" and im.mode in ("RGBA", "LA", "P") else "RGB")
-                for suffix, cap in (("", 2000), ("-800", 800)):
-                    out = im.copy()
-                    out.thumbnail((cap, cap), Image.LANCZOS)
-                    opts = {"quality": 82, "optimize": True, "progressive": True} if fmt == "JPEG" else \
-                           {"quality": 82} if fmt == "WEBP" else {"optimize": True}
-                    out.save(os.path.join(OUT, upload_out(rel, suffix)), fmt, **opts)
-        except Exception as err:  # unreadable file: publish it untouched rather than break the site
-            print(f"WARNING: could not process upload {name}: {err}", file=sys.stderr)
-            shutil.copy(src, os.path.join(OUT, rel))
+            from io import BytesIO
+            from PIL import ImageCms
+            src = ImageCms.ImageCmsProfile(BytesIO(icc))
+            return ImageCms.profileToProfile(im, src, ImageCms.createProfile("sRGB"), outputMode=mode), has_alpha
+        except Exception:
+            pass                                                  # unusual profile: plain conversion below
+    return im.convert(mode), has_alpha
 
-process_uploads()
+PHOTO = {}   # upload path -> (full path, small path, width, height, small width)
+
+def process_photos():
+    """Publish only the photos the gallery uses: capped at 2000px plus an 800px copy for phones."""
+    taken = {}
+    for p in PROJECTS:
+        rel = p["image"]
+        if rel in PHOTO:
+            continue
+        try:
+            with Image.open(os.path.join(ROOT, rel)) as im:
+                im, has_alpha = to_srgb(im)
+        except Exception:
+            fail(f"content/gallery.yml: la foto '/{rel}' no se puede abrir (archivo dañado o formato no compatible). "
+                 "Súbela de nuevo como JPG.")
+            continue
+        full, small = photo_name(rel, has_alpha), photo_name(rel, has_alpha, "-800")
+        if full.lower() in taken:
+            fail(f"content/gallery.yml: las fotos '/{taken[full.lower()]}' y '/{rel}' tienen el mismo nombre. "
+                 "Cambia el nombre de una de ellas.")
+            continue
+        taken[full.lower()] = rel
+        sizes = []
+        for path, cap in ((full, 2000), (small, 800)):
+            out = im.copy()
+            out.thumbnail((cap, cap), Image.LANCZOS)
+            os.makedirs(os.path.dirname(os.path.join(OUT, path)), exist_ok=True)
+            if has_alpha:
+                out.save(os.path.join(OUT, path), "PNG", optimize=True)
+            else:
+                out.save(os.path.join(OUT, path), "JPEG", quality=82, optimize=True, progressive=True)
+            sizes.append(out.size)
+        PHOTO[rel] = (full, small, sizes[0][0], sizes[0][1], sizes[1][0])
+
+process_photos()
+stop_on_errors()
 
 # ================================================================== layout
 NAV = [("plumbing.html", "Plumbing"), ("electrical.html", "Electrical"), ("building.html", "Building &amp; Remodeling"),
@@ -389,7 +429,7 @@ def jsonld():
              "telephone": f"+1-{digits[:3]}-{digits[3:6]}-{digits[6:]}", "email": EMAIL,
              "address": {"@type": "PostalAddress", "streetAddress": o["street"], "addressLocality": o["city"],
                          "addressRegion": o["state"], "postalCode": o["zip"], "addressCountry": "US"},
-             "areaServed": f"Florida {o['region']}"}
+             "areaServed": f"Florida {o['region']}" if o["state"].upper() in ("FL", "FLORIDA") else f"{o['region']}, {o['state']}"}
         if SITE_URL:
             d["url"] = SITE_URL + "/"
             d["image"] = SITE_URL + "/assets/img/logo.png"
@@ -404,7 +444,7 @@ def jsonld():
     if SITE_URL:
         data["url"] = SITE_URL + "/"
         data["logo"] = SITE_URL + "/assets/img/logo.png"
-    return json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
+    return json.dumps(data, ensure_ascii=False).replace("<", "\\u003c")
 
 def head(b, title, desc, path="", schema=False):
     t, d = attr(title), attr(desc)
@@ -537,7 +577,7 @@ def footer(b):
     return f"""
   <footer class="footer">
     <div class="container">
-      <div class="footer__top">
+      <div class="footer__top"{f' style="--offices:{len(OFFICES)}"' if len(OFFICES) != 2 else ""}>
         <div class="footer__brand">
           <img src="{b}assets/img/logo-192.png" alt="U.S. Construction &amp; Plumbing Authority" width="96" height="87" loading="lazy">
           <p>{e(ABOUT_LINE)}</p>
@@ -683,21 +723,12 @@ def gallery_section(category, num, b=""):
         return ""
     figs = []
     for i, p in enumerate(items):
-        out_src, small = upload_out(p["image"]), upload_out(p["image"], "-800")
-        if not os.path.exists(os.path.join(OUT, out_src)):  # could not be processed: use the file as uploaded
-            out_src = small = p["image"]
-        try:
-            with Image.open(os.path.join(OUT, out_src)) as im:
-                wh = f' width="{im.size[0]}" height="{im.size[1]}"'
-                full_w = im.size[0]
-        except Exception:
-            wh, full_w = "", 2000
-        srcset = f' srcset="{b}{quote(small)} 800w, {b}{quote(out_src)} {full_w}w" sizes="(max-width: 720px) 100vw, 400px"' \
-            if small != out_src and os.path.exists(os.path.join(OUT, small)) else ""
+        full, small, w_, h_, sw = PHOTO[p["image"]]
+        srcset = f' srcset="{b}{quote(small)} {sw}w, {b}{quote(full)} {w_}w" sizes="(max-width: 720px) 100vw, 400px"' if sw < w_ else ""
         cap = e(p["title"])
         figs.append(f"""
         <figure class="gallery__item reveal{' reveal-d1' if i % 3 == 1 else ' reveal-d2' if i % 3 == 2 else ''}" data-lightbox data-title="{cap}" data-text="" role="button" tabindex="0" aria-label="Enlarge photo: {cap}">
-          <div class="dg-frame"><img src="{b}{quote(out_src)}" alt="{cap}"{wh} loading="lazy"{srcset}></div>
+          <div class="dg-frame"><img src="{b}{quote(full)}" alt="{cap}" width="{w_}" height="{h_}" loading="lazy"{srcset}></div>
           <figcaption>{cap}</figcaption>
         </figure>""")
     intro = f'<p class="reveal reveal-d1">{e(GALLERY_INTRO)}</p>' if GALLERY_INTRO else ""
@@ -1141,10 +1172,11 @@ def service_page(division, s, siblings):
   </main>
 """
     short_plain = plain(unescape(short))
-    cities = " & ".join(o["city"] for o in OFFICES)
-    desc = f"{plain_title} in {cities}, FL. {short_plain} Licensed & insured {div_name.lower()} contractors. Free on-site evaluation."
+    states = sorted({o["state"] for o in OFFICES})
+    cities = " & ".join(o["city"] for o in OFFICES) + (f", {states[0]}" if len(states) == 1 else "")
+    desc = f"{plain_title} in {cities}. {short_plain} Licensed & insured {div_name.lower()} contractors. Free on-site evaluation."
     if len(desc) > 160:
-        desc = f"{plain_title} in {cities}, FL. {short_plain} Free on-site evaluation."
+        desc = f"{plain_title} in {cities}. {short_plain} Free on-site evaluation."
     if len(desc) > 160:
         desc = desc[:157].rsplit(" ", 1)[0] + "…"
     html = head(b, f"{plain_title} | {div_brand.replace('&amp;', '&')}", desc, f"services/{division}-{slug}.html") + header(b, f"{division}.html") + body + footer(b)
@@ -1183,7 +1215,7 @@ building = f"""
           <a href="schedule.html?division=building" class="btn btn--red">Schedule a Free Evaluation <i class="fa-solid fa-arrow-right"></i></a>
           <a href="{PRIMARY["tel"]}" class="btn btn--glass"><i class="fa-solid fa-phone"></i> {e(PRIMARY["phone"])}</a>
         </div>
-        <div class="mini-trust reveal reveal-d3"><span><i class="fa-solid fa-building"></i> {e(next((l["number"] for l in LICENSES if l["type"] == "building"), "Licensed &amp; insured"))}</span><span><i class="fa-solid fa-clipboard-check"></i> Permitting support</span><span><i class="fa-solid fa-temperature-half"></i> Infrared inspections</span></div>
+        <div class="mini-trust reveal reveal-d3"><span><i class="fa-solid fa-building"></i> {next((e(l["number"]) for l in LICENSES if l["type"] == "building"), "Licensed &amp; insured")}</span><span><i class="fa-solid fa-clipboard-check"></i> Permitting support</span><span><i class="fa-solid fa-temperature-half"></i> Infrared inspections</span></div>
       </div>
       <figure class="page-hero__media page-hero__media--static">
         <div class="dg-frame">{img_tag("crop-house.jpg", "", "Cross-section of a home showing its plumbing and building systems", lazy=False)}</div>

@@ -56,10 +56,13 @@ def strings(name, label, description=None, required=True, item="text"):
         f["required"] = True
     return f
 
-def obj(name, label, fields, description=None):
+def obj(name, label, fields, description=None, required=True):
+    # Required, so Pages CMS checks the inner fields even when every one of them was emptied
     f = {"name": name, "label": label, "type": "object", "fields": fields}
     if description:
         f["description"] = description
+    if required:
+        f["required"] = True
     return f
 
 def objlist(name, label, fields, summary="{fields.title}", description=None, required=True):
@@ -103,7 +106,7 @@ site = {
             t("text", "Texto del aviso", RICH, required=False),
             s("link_text", "Texto del enlace (opcional)", "Ejemplo: Book now", required=False),
             s("link", "Enlace (opcional)", "Ejemplo: schedule.html o https://...", required=False, pattern=LINK),
-        ], "Úsalo para promociones o avisos temporales (por ejemplo, temporada de huracanes)."),
+        ], "Úsalo para promociones o avisos temporales (por ejemplo, temporada de huracanes).", required=False),
         obj("final_cta", "Llamado final (al pie de cada página)", [
             s("heading", "Título", ACCENT), t("lead", "Texto"),
         ]),
@@ -182,6 +185,8 @@ def services(division, label):
         "name": division, "label": label, "type": "collection", "path": f"content/services/{division}", "format": "yaml",
         "description": "Cada servicio tiene su propia página. Desmarca «Mostrar en la web» para ocultarlo sin borrarlo.",
         "filename": "{fields.title}.yml",
+        "subfolders": False,                    # the build reads only the top folder
+        "operations": {"rename": False},        # the file name is the page URL
         "view": {"fields": ["title", "order", "visible"], "primary": "title", "sort": ["order", "title"],
                  "default": {"sort": "order", "order": "asc"}},
         "fields": [
